@@ -1,0 +1,6 @@
+name: venv_bridge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+      - forest-gen@git+ssh://git@github.com/GrafCzterech/forest-gen.git@main

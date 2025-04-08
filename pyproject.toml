@@ -20,5 +20,10 @@ package-dir = { "" = "src" }
 dev = ["black"]
 test = ["unittest"]
 
+[tool.pyproject2conda.dependencies]
+forest-gen = {pip = true}
+black = {skip = true, pip = true}
+unittest = {skip = true, pip = true}
+
 [project.urls]
-Repository = "https://github.com/GrafCzterech/python-template"
+Repository = "https://github.com/GrafCzterech/nfl-lab-bridge"
