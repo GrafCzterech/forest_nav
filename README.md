@@ -1,7 +1,7 @@
-# python-template
+# NFL-Lab-Bridge
 
-## Polecane rozszerzenia do vscode
+## Yup, that's me, the bridge between Isaac Lab and NeuroforgeLab
 
-- [Black formatter](https://marketplace.visualstudio.com/items?itemName=ms-python.black-formatter)
-- [Todo Tree](https://marketplace.visualstudio.com/items?itemName=Gruntfuggly.todo-tree)
-- [autoDocstring](https://marketplace.visualstudio.com/items?itemName=njpwerner.autodocstring)
+Use ```install.sh``` to setup the virtual environment and start working with this bridge. As said in forest-gen's ```README.md``` - Lord have mercy upon those, who wish to run it on windows (at least for now).
+
+NOTE: Isaac Lab and its required packages are not installed by aforementioned script.
