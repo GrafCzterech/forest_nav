@@ -3,7 +3,7 @@ line-length = 80
 include = '\.pyi?$'
 
 [project]
-name = "name"
+name = "nfl_lab_bridge"
 version = "0.1.0"
 description = ""
 readme = "README.md"
