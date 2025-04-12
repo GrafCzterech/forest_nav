@@ -38,7 +38,7 @@ def main():
     sim = SimulationContext(sim_cfg)
 
     # Camera setting
-    sim.set_camera_view([0.0, 0.0, 5.0])
+    sim.set_camera_view([0.0, 0.0, 5.0], [1.0,1.0,1.0])
 
     # Scene generation
     generator = ForestGenSpec()
