@@ -1,6 +1,7 @@
 import argparse
 import logging
 
+# TODO we need a centralized logging system
 logging.basicConfig(
     level=logging.DEBUG,
     format="[%(asctime)s] {%(module)s:%(lineno)d} %(levelname)s: %(message)s",
