@@ -1,4 +1,10 @@
 import argparse
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="[%(asctime)s] {%(module)s:%(lineno)d} %(levelname)s: %(message)s",
+)
 
 from isaaclab.app import AppLauncher
 
@@ -45,22 +51,26 @@ def main():
     sim_cfg = SimulationCfg(device=args_cli.device)
     sim = SimulationContext(sim_cfg)
 
+    logging.debug("Simulation context initialized")
+
     # Camera setting
     sim.set_camera_view((0.0, 0.0, 5.0), (1.0, 1.0, 1.0))
 
     # Scene generation
     generator = ForestGenSpec()
+    logging.debug("Scene generator initialized")
     scene_factory = generator.create_instance()
     my_scene_cfg = (
         scene_factory.new_scene()
     )  # TODO add the option to init multiple scenes - in NFL backend
+    logging.debug("Scene generated")
     my_scene = InteractiveScene(my_scene_cfg)
 
     # Reset simulation context - required by Isaac Lab
     sim.reset()
 
     # Run scene
-    print("[NFL INFO]: Setup completed!")
+    logging.info("Setup completed!")  # Yipeee! Cola trinken!
     run_simulation(sim, my_scene)
 
 
