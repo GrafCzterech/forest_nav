@@ -30,7 +30,6 @@ from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext, SimulationCfg
 import isaacsim.core.utils.prims as prims_utils
 from pxr import PhysxSchema
-import omni.physx
 from forest_gen.scene import ForestGenSpec
 
 BUFFER_SIZE = 400000
