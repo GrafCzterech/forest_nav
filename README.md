@@ -29,3 +29,5 @@ according to the
 
 It is neccesary, as NeuroforgeLab uses imports from Isaac Lab, thus making it
 dependant. Everything should work now. Have a good one.
+
+[Spot USD path](https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/4.5/Isaac/Robots/BostonDynamics/spot/spot.usd)

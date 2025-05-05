@@ -28,11 +28,11 @@ simulation_app = app_launcher.app
 
 from isaaclab.scene import InteractiveScene
 from isaaclab.sim import SimulationContext, SimulationCfg
-import isaacsim.core.utils.prims as prims_utils
-from pxr import PhysxSchema
-from forest_gen.scene import ForestGenSpec
+from forest_gen import ForestGenSpec
+from isaaclab_assets.robots.spot import SPOT_CFG
 
 BUFFER_SIZE = 400000
+
 
 def run_simulation(sim: SimulationContext, scene: InteractiveScene):
     """Function to run a simulation.
@@ -48,19 +48,8 @@ def run_simulation(sim: SimulationContext, scene: InteractiveScene):
         sim.step()
         scene.update(sim_dt)
 
-def resize_buffer(size: int, physics_scene_prim_path: str):
-    """Function to resize """
-    physics_scene_prim = prims_utils.create_prim(
-        prim_path=physics_scene_prim_path
-    )
 
-    physxSceneAPI = PhysxSchema.PhysxSceneAPI.Apply(physics_scene_prim)
-    physxSceneAPI.CreateGpuTempBufferCapacityAttr(size)        
-    physxSceneAPI.CreateGpuHeapCapacityAttr(size*4)
-
-
-def main():
-    """Main sim function."""
+if __name__ == "__main__":
     # Simulation Context initialization
     sim_cfg = SimulationCfg(device=args_cli.device)
     sim = SimulationContext(sim_cfg)
@@ -73,7 +62,7 @@ def main():
     sim.set_camera_view((0.0, 0.0, 5.0), (1.0, 1.0, 4.0))
 
     # Scene generation
-    generator = ForestGenSpec(size=50)
+    generator = ForestGenSpec(size=100, robot=SPOT_CFG)
     logging.debug("Scene generator initialized")
     scene_factory = generator.create_instance()
     my_scene_cfg = (
@@ -88,7 +77,4 @@ def main():
     # Run scene
     logging.info("Setup completed!")  # Yipeee! Cola trinken!
     run_simulation(sim, my_scene)
-
-if __name__ == "__main__":
-    main()
     simulation_app.close()
