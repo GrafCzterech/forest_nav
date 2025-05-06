@@ -1,11 +1,17 @@
 import argparse
 import logging
 
-# TODO we need a centralized logging system
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="[%(asctime)s] {%(module)s:%(lineno)d} %(levelname)s: %(message)s",
+handler = logging.StreamHandler()
+handler.setFormatter(
+    logging.Formatter(
+        "[%(asctime)s] {%(name)s:%(lineno)d} %(levelname)s: %(message)s"
+    )
 )
+
+for logger in ("forest_gen", "neuroforgelab", "main"):
+    logger = logging.getLogger(logger)
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
 
 from isaaclab.app import AppLauncher
 
@@ -54,7 +60,7 @@ if __name__ == "__main__":
     sim_cfg = SimulationCfg(device=args_cli.device)
     sim = SimulationContext(sim_cfg)
 
-    logging.debug("Simulation context initialized")
+    logger.debug("Simulation context initialized")
 
     # resize_buffer(BUFFER_SIZE, "/World/physicsScene")  # TODO - Do something about it, doesn't work here right now. Try in scene generator
 
@@ -63,18 +69,18 @@ if __name__ == "__main__":
 
     # Scene generation
     generator = ForestGenSpec(size=100, robot=SPOT_CFG)
-    logging.debug("Scene generator initialized")
+    logger.debug("Scene generator initialized")
     scene_factory = generator.create_instance()
     my_scene_cfg = (
         scene_factory.new_scene()
     )  # TODO add the option to init multiple scenes - in NFL backend
-    logging.debug("Scene generated")
+    logger.debug("Scene generated")
     my_scene = InteractiveScene(my_scene_cfg)
 
     # Reset simulation context - required by Isaac Lab
     sim.reset()
 
     # Run scene
-    logging.info("Setup completed!")  # Yipeee! Cola trinken!
+    logger.info("Setup completed!")  # Yipeee! Cola trinken!
     run_simulation(sim, my_scene)
     simulation_app.close()
