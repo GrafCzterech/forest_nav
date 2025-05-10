@@ -12,8 +12,11 @@ from isaaclab.managers import (
     ObservationTermCfg,
     SceneEntityCfg,
     ObservationGroupCfg,
+    TerminationTermCfg,
 )
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.assets import RigidObject
+from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 
 # isaaclab_assets is a special module containing prebuilt assets
 from isaaclab_assets.robots.spot import SPOT_CFG
@@ -39,13 +42,14 @@ def run_manger(scene: ManagerBasedRLEnv):
             scene.step(joint_efforts)
 
 
-SPEC = ForestGenSpec(size=100, robot=SPOT_CFG)
+SIZE = 256
 
 
 @configclass
 class EventCfg:
 
-    reset_scene = SPEC.create_reset_event(scene_name="World")
+    def __init__(self, spec: ForestGenSpec):
+        self.reset_scene = spec.create_reset_event(scene_name="World")
 
 
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
@@ -56,14 +60,23 @@ class RewardsCfg:
     pass
 
 
+def terrain_out_of_bounds(
+    cfg: ManagerBasedRLEnv, distance_buffer: float = 3.0
+) -> torch.Tensor:
+    asset: RigidObject = cfg.scene["robot"]
+    x_out_of_bounds = torch.abs(asset.data.root_pos_w[:, 0]) > SIZE - distance_buffer
+    y_out_of_bounds = torch.abs(asset.data.root_pos_w[:, 1]) > SIZE - distance_buffer
+    return torch.logical_or(x_out_of_bounds, y_out_of_bounds)
+
+
 @configclass
 class TerminationsCfg:
-    pass
-
-
-@configclass
-class CommandsCfg:
-    pass
+    time_out = TerminationTermCfg(func=mdp.time_out, time_out=True)
+    terrain_out_of_bounds = TerminationTermCfg(
+        func=terrain_out_of_bounds,
+        params={"distance_buffer": 3.0},
+        time_out=True,
+    )
 
 
 @configclass
@@ -113,20 +126,27 @@ class ObservationsCfg:
 @configclass
 class EnvCfg(ManagerBasedRLEnvCfg):
 
-    scene = SPEC.create_instance().new_scene()
+    def __init__(self, size: int = 256):
+        super().__init__()
 
-    # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
+        spec = ForestGenSpec(
+            size=size,
+            robot=SPOT_CFG,
+        )
 
-    episode_length_s = 100.0
+        self.scene = spec.create_instance().new_scene()
 
-    actions = SpotActionsCfg()  # spot effectors
-    observations = ObservationsCfg()  # spot observations
-    events = EventCfg()  # events that happen in the scene
+        # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
 
-    # RL config
-    commands = CommandsCfg()
-    rewards = RewardsCfg()
-    terminations = TerminationsCfg()
+        self.episode_length_s = 100.0
+
+        self.actions = SpotActionsCfg()  # spot effectors
+        self.observations = ObservationsCfg()  # spot observations
+        self.events = EventCfg(spec)  # events that happen in the scene
+
+        # RL config
+        self.rewards = RewardsCfg()
+        self.terminations = TerminationsCfg()
 
     def __post_init__(self):
         """Post initialization."""
@@ -141,7 +161,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
 if __name__ == "__main__":
 
-    cfg = EnvCfg()
+    cfg = EnvCfg(SIZE)
     logger.debug("Config initialized")
     manager = ManagerBasedRLEnv(cfg)
     logger.debug("Manager initialized")
