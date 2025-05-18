@@ -1,6 +1,6 @@
 import os
-import json
 
+from bridge_config import setup_logging
 from manager import EnvCfg
 
 import gymnasium
@@ -10,13 +10,16 @@ from stable_baselines3.common.callbacks import CheckpointCallback
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.vec_env import VecNormalize
 
-from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
+from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
 LOG_DIR = "logs"
+POLICY_ARCH = "MlpPolicy"  # or "CnnPolicy" for image-based policies
+N_TIMESTEPS = 10**6  # number of timesteps to train for
 
 # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/run_rl_training.html
 
 if __name__ == "__main__":
+    logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
     env_cfg = EnvCfg()
     gymnasium.register(
         id="env",
@@ -27,15 +30,9 @@ if __name__ == "__main__":
 
     env = Sb3VecEnvWrapper(env)  # type: ignore
 
-    # TODO create an example config
-    with open("agent.json", "r") as f:
-        agent_cfg = json.load(f)
+    logger.debug("environment created")
 
-    agent_cfg = process_sb3_cfg(agent_cfg)
-    policy_arch = agent_cfg.pop("policy")
-    n_timesteps = agent_cfg.pop("n_timesteps")
-
-    agent = PPO(policy_arch, env, verbose=1, **agent_cfg)
+    agent = PPO(POLICY_ARCH, env, verbose=1)
 
     # configure the logger
 
@@ -51,9 +48,13 @@ if __name__ == "__main__":
 
     # train the agent
 
-    agent.learn(total_timesteps=n_timesteps, callback=checkpoint_callback)
+    logger.debug("Training agent")
+
+    agent.learn(total_timesteps=N_TIMESTEPS, callback=checkpoint_callback)
 
     # save the final model
+
+    logger.debug("Saving agent")
 
     agent.save(os.path.join(LOG_DIR, "model"))
 
