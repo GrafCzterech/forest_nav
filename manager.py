@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import torch
 
 from bridge_config import setup_logging, setup
@@ -13,6 +14,7 @@ from isaaclab.managers import (
     SceneEntityCfg,
     ObservationGroupCfg,
     TerminationTermCfg,
+    RewardTermCfg,
 )
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from isaaclab.assets import RigidObject
@@ -36,6 +38,7 @@ def run_manger(scene: ManagerBasedRLEnv):
     Args:
         scene (ManagerBasedEnv): Wrapper over the scene
     """
+    scene.reset()
     while simulation_app.is_running():
         with torch.inference_mode():
             joint_efforts = torch.randn_like(scene.action_manager.action)
@@ -55,9 +58,24 @@ class EventCfg:
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
 
 
+@dataclass
+class DistanceToTargetCfg:
+    """Distance to target."""
+
+    target: torch.Tensor
+
+    def __call__(self, cfg: ManagerBasedRLEnv) -> torch.Tensor:
+        asset: RigidObject = cfg.scene["robot"]
+        return torch.linalg.norm(asset.data.root_pos_w - self.target, dim=-1)
+
+
 @configclass
 class RewardsCfg:
-    pass
+    alive = RewardTermCfg(func=mdp.is_alive, weight=1.0)
+    terminating = RewardTermCfg(func=mdp.is_terminated, weight=-2.0)
+    distance = RewardTermCfg(
+        func=DistanceToTargetCfg(target=torch.tensor([0.0, 0.0, 0.0])), weight=1.0
+    )
 
 
 def terrain_out_of_bounds(
