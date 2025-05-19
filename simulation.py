@@ -12,10 +12,10 @@ from isaaclab_assets.robots.spot import SPOT_CFG
 from forest_gen import ForestGenSpec
 
 
-def run_simulation(sim: SimulationContext, scene: InteractiveScene):
+def run_simulation(sim: SimulationContext, scene: InteractiveScene) -> None:
     """Function to run a simulation.
+    Pretty basic as of now.
 
-    Pretty basic as for now.
     Args:
         sim (sim_utils.SimulationContext): Simulation Context as defined by Isaac Lab
         scene (InteractiveScene): Scene generated from NFL Interface config class

@@ -12,6 +12,8 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
+# this is THE script. John Script.
+
 LOG_DIR = "logs"
 POLICY_ARCH = "MlpPolicy"  # or "CnnPolicy" for image-based policies
 N_TIMESTEPS = 10**6  # number of timesteps to train for
@@ -19,7 +21,9 @@ N_TIMESTEPS = 10**6  # number of timesteps to train for
 # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/run_rl_training.html
 
 if __name__ == "__main__":
+    # first setup the config
     env_cfg = EnvCfg()
+    # it best be registered in gymnasium
     gymnasium.register(
         id="env",
         entry_point="isaaclab.envs:ManagerBasedRLEnv",
@@ -27,36 +31,30 @@ if __name__ == "__main__":
     )
     env = gymnasium.make("env", cfg=env_cfg)
 
+    # then wrap it for some reason
     env = Sb3VecEnvWrapper(env)  # type: ignore
 
     logging.debug("environment created")
 
+    # then initialize the policy optimizer
     agent = PPO(POLICY_ARCH, env, verbose=1)
 
     # configure the logger
-
     new_logger = configure(LOG_DIR, ["stdout", "tensorboard"])
-
     agent.set_logger(new_logger)
 
     # callbacks for agent
-
     checkpoint_callback = CheckpointCallback(
         save_freq=1000, save_path=LOG_DIR, name_prefix="model", verbose=2
     )
 
     # train the agent
-
     logging.debug("Training agent")
-
     agent.learn(total_timesteps=N_TIMESTEPS, callback=checkpoint_callback)
 
     # save the final model
-
     logging.debug("Saving agent")
-
     agent.save(os.path.join(LOG_DIR, "model"))
 
     # close the simulator
-
     env.close()

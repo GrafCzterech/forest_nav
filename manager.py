@@ -32,7 +32,7 @@ import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
 from forest_gen import ForestGenSpec
 
 
-def run_manger(scene: ManagerBasedRLEnv):
+def run_manger(scene: ManagerBasedRLEnv) -> None:
     """Function to run a simulation.
 
     Args:
@@ -46,12 +46,16 @@ def run_manger(scene: ManagerBasedRLEnv):
 
 
 SIZE = 256
+"""The size of the scene. The generated scene will be a square of size SIZE x SIZE."""
 
 
+# configclass to setup events that the manager will invoke at certain times
+# https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg
 @configclass
 class EventCfg:
 
     def __init__(self, spec: ForestGenSpec):
+        # please note this:
         self.reset_scene = spec.create_reset_event(scene_name="World")
 
 
@@ -60,15 +64,18 @@ class EventCfg:
 
 @dataclass
 class DistanceToTargetCfg:
-    """Distance to target."""
+    """A function that computes the distance to a target."""
 
     target: torch.Tensor
 
+    # All objects with the __call__ method work like a function
     def __call__(self, cfg: ManagerBasedRLEnv) -> torch.Tensor:
         asset: RigidObject = cfg.scene["robot"]
         return torch.linalg.norm(asset.data.root_pos_w - self.target, dim=-1)
 
 
+# configclass to setup the reward terms, this is used directly in the RL learning process
+# https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg
 @configclass
 class RewardsCfg:
     alive = RewardTermCfg(func=mdp.is_alive, weight=1.0)
@@ -81,12 +88,23 @@ class RewardsCfg:
 def terrain_out_of_bounds(
     cfg: ManagerBasedRLEnv, distance_buffer: float = 3.0
 ) -> torch.Tensor:
+    """Check if the robot is out of bounds of the terrain.
+
+    Args:
+        cfg (ManagerBasedRLEnv): The configuration of the scene.
+        distance_buffer (float, optional): The distance the agent should keep from the edge. Defaults to 3.0.
+
+    Returns:
+        torch.Tensor: _description_
+    """
     asset: RigidObject = cfg.scene["robot"]
     x_out_of_bounds = torch.abs(asset.data.root_pos_w[:, 0]) > SIZE - distance_buffer
     y_out_of_bounds = torch.abs(asset.data.root_pos_w[:, 1]) > SIZE - distance_buffer
     return torch.logical_or(x_out_of_bounds, y_out_of_bounds)
 
 
+# configclass to setup the termination terms, if any of these return true, the episode is terminated
+# https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.TerminationTermCfg
 @configclass
 class TerminationsCfg:
     time_out = TerminationTermCfg(func=mdp.time_out, time_out=True)
@@ -97,9 +115,13 @@ class TerminationsCfg:
     )
 
 
+# configclass to setup the observations, these provide arguments for the RL model
+# https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.ObservationTermCfg
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
+
+    # this is straight copied from the tutorial, probably works ok?
 
     @configclass
     class PolicyCfg(ObservationGroupCfg):
@@ -141,6 +163,7 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
+# one configclass to rule them all and in the darkness bind them
 @configclass
 class EnvCfg(ManagerBasedRLEnvCfg):
 
@@ -152,6 +175,8 @@ class EnvCfg(ManagerBasedRLEnvCfg):
             robot=SPOT_CFG,
         )
 
+        # please note: we initialize the manager with a prebuilt COMPLETE scene
+        # MAYBE just have an empty scene with a robot and count on reset to load the terrain?
         self.scene = spec.create_instance().new_scene()
 
         # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
@@ -166,6 +191,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
         self.rewards = RewardsCfg()
         self.terminations = TerminationsCfg()
 
+    # i have no clue why this is needed, but it was in the tutorial and I am a pious man who follows the path of the righteous
     def __post_init__(self):
         """Post initialization."""
         # viewer settings

@@ -14,7 +14,8 @@ script.
 ## Scripts
 
 Since we all have dementia, the command to launch IsaacLab coupled with the
-arguments to run different versions of engine are stored in scripts.
+arguments to run different versions of engine are stored in scripts. All of
+these execute a Python script with the same name.
 
 ### `sim.sh`
 
