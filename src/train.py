@@ -14,7 +14,7 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper
 
 # this is THE script. John Script.
 
-LOG_DIR = "logs"
+LOG_DIR = "../logs"
 POLICY_ARCH = "MlpPolicy"  # or "CnnPolicy" for image-based policies
 N_TIMESTEPS = 10**6  # number of timesteps to train for
 

@@ -1,2 +1,2 @@
 #! /bin/bash
-LIVESTREAM=2 ../../IsaacLab/isaaclab.sh -p simulation.py
+LIVESTREAM=2 ../../IsaacLab/isaaclab.sh -p src/simulation.py
