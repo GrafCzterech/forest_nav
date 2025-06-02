@@ -5,7 +5,7 @@ from bridge_config import setup_logging, setup
 
 logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
 
-simulation_app, _ = setup()
+# simulation_app, _ = setup()
 
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
@@ -33,18 +33,18 @@ import isaaclab_tasks.manager_based.navigation.mdp as mdp
 from forest_gen import ForestGenSpec
 
 
-def run_manger(scene: ManagerBasedRLEnv) -> None:
-    """Function to run a simulation.
+# def run_manger(scene: ManagerBasedRLEnv) -> None:
+    # """Function to run a simulation.
 
-    Args:
-        scene (ManagerBasedEnv): Wrapper over the scene
-    """
-    scene.reset()
+    # Args:
+        # scene (ManagerBasedEnv): Wrapper over the scene
+    # """
+    # scene.reset()
 
-    while simulation_app.is_running():
-        with torch.inference_mode():
-            joint_efforts = torch.randn_like(scene.action_manager.action)
-            scene.step(joint_efforts)
+    # while simulation_app.is_running():
+        # with torch.inference_mode():
+            # joint_efforts = torch.randn_like(scene.action_manager.action)
+            # scene.step(joint_efforts)
 
 
 SIZE = 256
@@ -56,7 +56,8 @@ SIZE = 256
 @configclass
 class EventCfg:
 
-    def __init__(self, spec: ForestGenSpec):
+    # def __init__(self, spec: ForestGenSpec):
+    def __init__(self):
         pass
         # please note this:
         # self.reset_scene = spec.create_reset_event(scene_name="World")
@@ -65,16 +66,14 @@ class EventCfg:
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
 
 
-@dataclass
-class DistanceToTargetCfg:
-    """A function that computes the distance to a target."""
-
-    target: torch.Tensor
-
-    # All objects with the __call__ method work like a function
-    def __call__(self, cfg: ManagerBasedRLEnv) -> torch.Tensor:
-        asset: RigidObject = cfg.scene["robot"]
-        return torch.linalg.norm(asset.data.root_pos_w - self.target, dim=-1)
+def distance_to_target(cfg: ManagerBasedRLEnv, target: torch.Tensor) -> torch.Tensor:
+    asset: RigidObject = cfg.scene["robot"]
+    device = asset.data.root_pos_w.device
+    if target is None:
+        target = torch.tensor([0.0, 0.0, 0.0], device=device)
+    elif not isinstance(target, torch.Tensor):
+        target = torch.tensor(target, device=device)
+    return torch.linalg.norm(asset.data.root_pos_w - target, dim=-1)
 
 
 # configclass to setup the reward terms, this is used directly in the RL learning process
@@ -84,7 +83,9 @@ class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
     distance = RewTerm(
-        func=DistanceToTargetCfg(target=torch.tensor([0.0, 0.0, 0.0])), weight=1.0
+        func=distance_to_target,
+        params={"target": [0.0, 0.0, 0.0]},
+        weight=1.0
     )
 
 
@@ -170,17 +171,12 @@ class ObservationsCfg:
 @configclass
 class EnvCfg(ManagerBasedRLEnvCfg):
 
-    def __init__(self, size: int = 256):
+    def __init__(self, size: int = 100):
         super().__init__()
 
-        spec = ForestGenSpec(
-            size=size,
-            robot=SPOT_CFG,
-        )
-
-        # please note: we initialize the manager with a prebuilt COMPLETE scene
-        # MAYBE just have an empty scene with a robot and count on reset to load the terrain?
-        self.scene = spec.create_instance().new_scene()
+        self.size = size
+        self.robot = SPOT_CFG.copy()
+        self.robot.prim_path = "/World/Terrain/Robot"
 
         # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
 
@@ -188,7 +184,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
         self.actions = SpotActionsCfg()  # spot effectors
         self.observations = ObservationsCfg()  # spot observations
-        self.events = EventCfg(spec)  # events that happen in the scene
+        self.events = EventCfg()  # events that happen in the scene
 
         # RL config
         self.rewards = RewardsCfg()
@@ -197,14 +193,22 @@ class EnvCfg(ManagerBasedRLEnvCfg):
     # i have no clue why this is needed, but it was in the tutorial and I am a pious man who follows the path of the righteous
     def __post_init__(self):
         """Post initialization."""
+        # super().__post_init__()
         # viewer settings
-        self.viewer.eye = (4.5, 0.0, 6.0)
-        self.viewer.lookat = (0.0, 0.0, 2.0)
+        self.viewer.eye = (-10.0, -10.0, 30.0)
+        self.viewer.lookat = (30.0, 30.0, 0.0)
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
+class ForestNavEnv(ManagerBasedRLEnv):
+    def __init__(self, cfg: EnvCfg, **kwargs):
+        # Tutaj generujesz scenę na podstawie parametrów z cfg
+        spec = ForestGenSpec(size=cfg.size, robot=cfg.robot)
+        scene = spec.create_instance().new_scene()
+        cfg.scene = scene  # przypisujesz scenę do cfg na runtime
+        super().__init__(cfg, **kwargs)
 
 # if __name__ == "__main__":
 
