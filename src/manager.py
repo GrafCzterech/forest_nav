@@ -10,11 +10,12 @@ simulation_app, _ = setup()
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
 from isaaclab.managers import (
-    ObservationTermCfg,
+    ObservationTermCfg as ObsTerm,
     SceneEntityCfg,
-    ObservationGroupCfg,
-    TerminationTermCfg,
-    RewardTermCfg,
+    ObservationGroupCfg as ObsGroup,
+    TerminationTermCfg as DoneTerm,
+    RewardTermCfg as RewTerm,
+    EventTermCfg as EventTerm,
 )
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from isaaclab.assets import RigidObject
@@ -27,7 +28,7 @@ from isaaclab_assets.robots.spot import SPOT_CFG
 from isaaclab_tasks.manager_based.locomotion.velocity.config.spot.flat_env_cfg import (
     SpotActionsCfg,
 )
-import isaaclab_tasks.manager_based.locomotion.velocity.mdp as mdp
+import isaaclab_tasks.manager_based.navigation.mdp as mdp
 
 from forest_gen import ForestGenSpec
 
@@ -39,6 +40,7 @@ def run_manger(scene: ManagerBasedRLEnv) -> None:
         scene (ManagerBasedEnv): Wrapper over the scene
     """
     scene.reset()
+
     while simulation_app.is_running():
         with torch.inference_mode():
             joint_efforts = torch.randn_like(scene.action_manager.action)
@@ -55,8 +57,9 @@ SIZE = 256
 class EventCfg:
 
     def __init__(self, spec: ForestGenSpec):
+        pass
         # please note this:
-        self.reset_scene = spec.create_reset_event(scene_name="World")
+        # self.reset_scene = spec.create_reset_event(scene_name="World")
 
 
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
@@ -78,9 +81,9 @@ class DistanceToTargetCfg:
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg
 @configclass
 class RewardsCfg:
-    alive = RewardTermCfg(func=mdp.is_alive, weight=1.0)
-    terminating = RewardTermCfg(func=mdp.is_terminated, weight=-2.0)
-    distance = RewardTermCfg(
+    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+    terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
+    distance = RewTerm(
         func=DistanceToTargetCfg(target=torch.tensor([0.0, 0.0, 0.0])), weight=1.0
     )
 
@@ -107,8 +110,8 @@ def terrain_out_of_bounds(
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.TerminationTermCfg
 @configclass
 class TerminationsCfg:
-    time_out = TerminationTermCfg(func=mdp.time_out, time_out=True)
-    terrain_out_of_bounds = TerminationTermCfg(
+    time_out = DoneTerm(func=mdp.time_out, time_out=True)
+    terrain_out_of_bounds = DoneTerm(
         func=terrain_out_of_bounds,
         params={"distance_buffer": 3.0},
         time_out=True,
@@ -124,36 +127,36 @@ class ObservationsCfg:
     # this is straight copied from the tutorial, probably works ok?
 
     @configclass
-    class PolicyCfg(ObservationGroupCfg):
+    class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
         # `` observation terms (order preserved)
-        base_lin_vel = ObservationTermCfg(
+        base_lin_vel = ObsTerm(
             func=mdp.base_lin_vel,
             params={"asset_cfg": SceneEntityCfg("robot")},
             noise=Unoise(n_min=-0.1, n_max=0.1),
         )
-        base_ang_vel = ObservationTermCfg(
+        base_ang_vel = ObsTerm(
             func=mdp.base_ang_vel,
             params={"asset_cfg": SceneEntityCfg("robot")},
             noise=Unoise(n_min=-0.1, n_max=0.1),
         )
-        projected_gravity = ObservationTermCfg(
+        projected_gravity = ObsTerm(
             func=mdp.projected_gravity,
             params={"asset_cfg": SceneEntityCfg("robot")},
             noise=Unoise(n_min=-0.05, n_max=0.05),
         )
-        joint_pos = ObservationTermCfg(
+        joint_pos = ObsTerm(
             func=mdp.joint_pos_rel,
             params={"asset_cfg": SceneEntityCfg("robot")},
             noise=Unoise(n_min=-0.05, n_max=0.05),
         )
-        joint_vel = ObservationTermCfg(
+        joint_vel = ObsTerm(
             func=mdp.joint_vel_rel,
             params={"asset_cfg": SceneEntityCfg("robot")},
             noise=Unoise(n_min=-0.5, n_max=0.5),
         )
-        actions = ObservationTermCfg(func=mdp.last_action)
+        actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
             self.enable_corruption = False

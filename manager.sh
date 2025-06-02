@@ -1,2 +1,2 @@
 #! /bin/bash
-LIVESTREAM=2 ../../IsaacLab/isaaclab.sh -p src/manager.py
+LIVESTREAM=2 ../../IsaacLab/isaaclab.sh -p src/manager.py $@
