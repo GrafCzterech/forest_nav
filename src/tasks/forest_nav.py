@@ -7,6 +7,7 @@ logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
 
 # simulation_app, _ = setup()
 
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
 from isaaclab.managers import (
@@ -37,12 +38,13 @@ SIZE = 256
 """The size of the scene. The generated scene will be a square of size SIZE x SIZE."""
 
 
-def reset_robot_pos(cfg: ManagerBasedRLEnv) -> None:
+def reset_robot_pos(cfg: ManagerBasedRLEnv, env_ids: torch.Tensor) -> None:
     """Reset the robot position to the center of the scene.
 
     Args:
         cfg (ManagerBasedRLEnv): The configuration of the scene.
     """
+    print("test", env_ids)
     asset: RigidObject = cfg.scene["robot"]
     asset.data.root_pos_w[:, 0] = SIZE / 2.0
     asset.data.root_pos_w[:, 1] = SIZE / 2.0
@@ -54,7 +56,7 @@ def reset_robot_pos(cfg: ManagerBasedRLEnv) -> None:
 @configclass
 class EventCfg:
 
-    def __init__(self, spec: ForestGenSpec):
+    def __init__(self):
         self.reset_scene = EventTerm(reset_robot_pos, mode="reset", params={})
 
 
@@ -167,12 +169,16 @@ class EnvCfg(ManagerBasedRLEnvCfg):
     def __init__(self, size: int = 100):
         super().__init__()
 
-        self.spec = ForestGenSpec(size=size, robot=SPOT_CFG)
-        self.scene = self.spec.create_instance().new_scene()
-
-        self.size = size
         self.robot = SPOT_CFG.copy()
         self.robot.prim_path = "/World/terrain/robot"
+
+        self.scene = InteractiveSceneCfg()
+        setattr(self.scene, "robot", SPOT_CFG)
+
+        self.scene.env_spacing = 1.0
+        self.scene.num_envs = 1
+        self.size = size
+
 
         # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
 
@@ -180,7 +186,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
         self.actions = SpotActionsCfg()  # spot effectors
         self.observations = ObservationsCfg()  # spot observations
-        self.events = EventCfg(self.spec)  # events that happen in the scene
+        self.events = EventCfg()  # events that happen in the scene
 
         # RL config
         self.rewards = RewardsCfg()
