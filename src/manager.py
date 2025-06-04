@@ -51,15 +51,26 @@ SIZE = 256
 """The size of the scene. The generated scene will be a square of size SIZE x SIZE."""
 
 
+def reset_robot_pos(cfg: ManagerBasedRLEnv) -> None:
+    """Reset the robot position to the center of the scene.
+
+    Args:
+        cfg (ManagerBasedRLEnv): The configuration of the scene.
+    """
+    asset: RigidObject = cfg.scene["robot"]
+    asset.data.root_pos_w[:, 0] = SIZE / 2.0
+    asset.data.root_pos_w[:, 1] = SIZE / 2.0
+    asset.data.root_pos_w[:, 2] = 0.0
+
+
 # configclass to setup events that the manager will invoke at certain times
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg
 @configclass
 class EventCfg:
 
     def __init__(self, spec: ForestGenSpec):
-        pass
         # please note this:
-        # self.reset_scene = spec.create_reset_event(scene_name="World")
+        self.reset_scene = EventTerm(func=reset_robot_pos, mode="reset", params={})
 
 
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
@@ -73,8 +84,16 @@ class DistanceToTargetCfg:
 
     # All objects with the __call__ method work like a function
     def __call__(self, cfg: ManagerBasedRLEnv) -> torch.Tensor:
+
         asset: RigidObject = cfg.scene["robot"]
-        return torch.linalg.norm(asset.data.root_pos_w - self.target, dim=-1)
+
+        # create new tensor on the same device as the asset data
+        # MAYBE fix, this is a bit hacky, but it works
+        target = self.target.to(
+            device=cfg.scene["robot"].data.root_pos_w.device,
+        )
+
+        return torch.linalg.norm(asset.data.root_pos_w - target, dim=-1)
 
 
 # configclass to setup the reward terms, this is used directly in the RL learning process
@@ -179,7 +198,6 @@ class EnvCfg(ManagerBasedRLEnvCfg):
         )
 
         # please note: we initialize the manager with a prebuilt COMPLETE scene
-        # MAYBE just have an empty scene with a robot and count on reset to load the terrain?
         self.scene = spec.create_instance().new_scene()
 
         # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
@@ -198,8 +216,8 @@ class EnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self):
         """Post initialization."""
         # viewer settings
-        self.viewer.eye = (0.0, 0.0, 5.0)
-        self.viewer.lookat = (1.0, 1.0, 4.0)
+        self.viewer.eye = (0.0, 0.0, 30.0)
+        self.viewer.lookat = (50.0, 50.0, 0.0)
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings

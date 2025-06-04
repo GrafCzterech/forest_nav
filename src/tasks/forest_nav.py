@@ -33,22 +33,20 @@ import isaaclab_tasks.manager_based.navigation.mdp as mdp
 from forest_gen import ForestGenSpec
 
 
-# def run_manger(scene: ManagerBasedRLEnv) -> None:
-    # """Function to run a simulation.
-
-    # Args:
-        # scene (ManagerBasedEnv): Wrapper over the scene
-    # """
-    # scene.reset()
-
-    # while simulation_app.is_running():
-        # with torch.inference_mode():
-            # joint_efforts = torch.randn_like(scene.action_manager.action)
-            # scene.step(joint_efforts)
-
-
 SIZE = 256
 """The size of the scene. The generated scene will be a square of size SIZE x SIZE."""
+
+
+def reset_robot_pos(cfg: ManagerBasedRLEnv) -> None:
+    """Reset the robot position to the center of the scene.
+
+    Args:
+        cfg (ManagerBasedRLEnv): The configuration of the scene.
+    """
+    asset: RigidObject = cfg.scene["robot"]
+    asset.data.root_pos_w[:, 0] = SIZE / 2.0
+    asset.data.root_pos_w[:, 1] = SIZE / 2.0
+    asset.data.root_pos_w[:, 2] = 0.0
 
 
 # configclass to setup events that the manager will invoke at certain times
@@ -56,11 +54,8 @@ SIZE = 256
 @configclass
 class EventCfg:
 
-    # def __init__(self, spec: ForestGenSpec):
-    def __init__(self):
-        pass
-        # please note this:
-        # self.reset_scene = spec.create_reset_event(scene_name="World")
+    def __init__(self, spec: ForestGenSpec):
+        self.reset_scene = EventTerm(reset_robot_pos, mode="reset", params={})
 
 
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
@@ -83,9 +78,7 @@ class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
     distance = RewTerm(
-        func=distance_to_target,
-        params={"target": [0.0, 0.0, 0.0]},
-        weight=1.0
+        func=distance_to_target, params={"target": [0.0, 0.0, 0.0]}, weight=1.0
     )
 
 
@@ -174,9 +167,12 @@ class EnvCfg(ManagerBasedRLEnvCfg):
     def __init__(self, size: int = 100):
         super().__init__()
 
+        self.spec = ForestGenSpec(size=size, robot=SPOT_CFG)
+        self.scene = self.spec.create_instance().new_scene()
+
         self.size = size
         self.robot = SPOT_CFG.copy()
-        self.robot.prim_path = "/World/Terrain/Robot"
+        self.robot.prim_path = "/World/terrain/robot"
 
         # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
 
@@ -184,7 +180,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
         self.actions = SpotActionsCfg()  # spot effectors
         self.observations = ObservationsCfg()  # spot observations
-        self.events = EventCfg()  # events that happen in the scene
+        self.events = EventCfg(self.spec)  # events that happen in the scene
 
         # RL config
         self.rewards = RewardsCfg()
@@ -202,20 +198,11 @@ class EnvCfg(ManagerBasedRLEnvCfg):
         # simulation settings
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
+
 class ForestNavEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: EnvCfg, **kwargs):
         # Tutaj generujesz scenę na podstawie parametrów z cfg
         spec = ForestGenSpec(size=cfg.size, robot=cfg.robot)
         scene = spec.create_instance().new_scene()
-        cfg.scene = scene  # przypisujesz scenę do cfg na runtime
+        cfg.scene = scene
         super().__init__(cfg, **kwargs)
-
-# if __name__ == "__main__":
-
-#     cfg = EnvCfg(SIZE)
-#     logger.debug("Config initialized")
-#     manager = ManagerBasedRLEnv(cfg)
-#     logger.debug("Manager initialized")
-#     run_manger(manager)
-
-#     simulation_app.close()
