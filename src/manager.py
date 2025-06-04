@@ -41,6 +41,8 @@ def run_manger(scene: ManagerBasedRLEnv) -> None:
     """
     scene.reset()
 
+    scene.sim.pause()
+
     while simulation_app.is_running():
         with torch.inference_mode():
             joint_efforts = torch.randn_like(scene.action_manager.action)
@@ -51,7 +53,7 @@ SIZE = 256
 """The size of the scene. The generated scene will be a square of size SIZE x SIZE."""
 
 
-def reset_robot_pos(cfg: ManagerBasedRLEnv) -> None:
+def reset_robot_pos(cfg: ManagerBasedRLEnv, envs_id: torch.Tensor) -> None:
     """Reset the robot position to the center of the scene.
 
     Args:

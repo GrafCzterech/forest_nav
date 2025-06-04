@@ -21,6 +21,9 @@ def run_simulation(sim: SimulationContext, scene: InteractiveScene) -> None:
         scene (InteractiveScene): Scene generated from NFL Interface config class
     """
     sim_dt = sim.get_physics_dt()
+
+    sim.pause()
+
     while simulation_app.is_running():
         scene.write_data_to_sim()
         sim.step()
