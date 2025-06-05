@@ -197,8 +197,8 @@ class EnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # super().__post_init__()
         # viewer settings
-        self.viewer.eye = (-10.0, -10.0, 30.0)
-        self.viewer.lookat = (30.0, 30.0, 0.0)
+        self.viewer.eye = (-0.0, -0.0, 200.0)
+        self.viewer.lookat = (0.0, 0.0, 0.0)
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
@@ -207,8 +207,10 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
 class ForestNavEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: EnvCfg, **kwargs):
+        print("TRALALELO TRALALA")
         # Tutaj generujesz scenę na podstawie parametrów z cfg
         spec = ForestGenSpec(size=cfg.size, robot=cfg.robot)
-        scene = spec.create_instance().new_scene()
+        scene = spec.create_instance().new_scene(cfg=cfg.scene)
+        print("Skibidi")
         cfg.scene = scene
         super().__init__(cfg, **kwargs)
