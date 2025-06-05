@@ -169,7 +169,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
     def __init__(self, size: int = 100):
         super().__init__()
 
-        self.robot = SPOT_CFG.copy()
+        self.robot = SPOT_CFG
         self.robot.prim_path = "/World/terrain/robot"
 
         self.scene = InteractiveSceneCfg()
@@ -195,9 +195,8 @@ class EnvCfg(ManagerBasedRLEnvCfg):
     # i have no clue why this is needed, but it was in the tutorial and I am a pious man who follows the path of the righteous
     def __post_init__(self):
         """Post initialization."""
-        # super().__post_init__()
         # viewer settings
-        self.viewer.eye = (-0.0, -0.0, 200.0)
+        self.viewer.eye = (00.0, 00.0, 175.0)
         self.viewer.lookat = (0.0, 0.0, 0.0)
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
