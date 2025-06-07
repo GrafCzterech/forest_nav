@@ -34,7 +34,11 @@ from isaaclab.utils.io import dump_pickle, dump_yaml
 # config shortcuts
 LOG_DIR = "../logs"
 algorithm = "ppo"
-agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
+agent_cfg_entry_point = (
+    "skrl_cfg_entry_point"
+    if algorithm in ["ppo"]
+    else f"skrl_{algorithm}_cfg_entry_point"
+)
 N_TIMESTEPS = 10**6  # number of timesteps to train for
 
 # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/run_rl_training.html
@@ -53,17 +57,17 @@ if __name__ == "__main__":
 
     # video output
     video_kwargs = {
-            "video_folder": os.path.join(LOG_DIR, "videos", "train"),
-            "step_trigger": lambda step: step % 2000 == 0,
-            "video_length": 200,  # 200 and 2000 above can be changed, these are default values from scripts
-            "disable_logger": True,
+        "video_folder": os.path.join(LOG_DIR, "videos", "train"),
+        "step_trigger": lambda step: step % 2000 == 0,
+        "video_length": 200,  # 200 and 2000 above can be changed, these are default values from scripts
+        "disable_logger": True,
     }
     logging.debug("[INFO] Recording videos during training.")
     print_dict(video_kwargs, nesting=4)
     env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # then wrap it for some reason
-    env = SkrlVecEnvWrapper(env, ml_framework='torch')  # type: ignore
+    env = SkrlVecEnvWrapper(env, ml_framework="torch")  # type: ignore
 
     logging.debug("environment created")
 

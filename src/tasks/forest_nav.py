@@ -167,6 +167,7 @@ class ObservationsCfg:
 class EnvCfg(ManagerBasedRLEnvCfg):
 
     def __init__(self, size: int = 100):
+        self.size = size
         super().__init__()
 
         self.robot = SPOT_CFG
@@ -177,8 +178,6 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
         self.scene.env_spacing = 1.0
         self.scene.num_envs = 1
-        self.size = size
-
 
         # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
 
@@ -194,10 +193,18 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
     # i have no clue why this is needed, but it was in the tutorial and I am a pious man who follows the path of the righteous
     def __post_init__(self):
+        self.spec = ForestGenSpec(size=self.size, robot=SPOT_CFG)
+
         """Post initialization."""
         # viewer settings
-        self.viewer.eye = (00.0, 00.0, 175.0)
-        self.viewer.lookat = (0.0, 0.0, 0.0)
+        # self.viewer.eye = (50.0, 50.0, 200.0)
+        # self.viewer.lookat = (50.0, 50.0, 0.0)
+        self.viewer.eye = (
+            self.spec.start_point[0] - 10,
+            self.spec.start_point[1] - 10,
+            10,
+        )
+        self.viewer.lookat = (self.spec.start_point[0], self.spec.start_point[1], 1)
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
@@ -207,9 +214,10 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 class ForestNavEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: EnvCfg, **kwargs):
         print("TRALALELO TRALALA")
+        self.cfg = cfg
         # Tutaj generujesz scenę na podstawie parametrów z cfg
-        spec = ForestGenSpec(size=cfg.size, robot=cfg.robot)
-        scene = spec.create_instance().new_scene(cfg=cfg.scene)
+        # spec = ForestGenSpec(size=cfg.size, robot=cfg.robot)
+        scene = cfg.spec.create_instance().new_scene()
         print("Skibidi")
         cfg.scene = scene
         super().__init__(cfg, **kwargs)

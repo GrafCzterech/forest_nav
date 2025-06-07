@@ -8,5 +8,5 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.forest_nav:EnvCfg",
         "skrl_cfg_entry_point": f"{__name__}:skrl_forest_nav_cfg.yaml",
-    }
+    },
 )
