@@ -15,7 +15,10 @@ from isaaclab.app import AppLauncher
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with skrl.")
 parser.add_argument(
-    "--video", action="store_true", default=False, help="Record videos during training."
+    "--video",
+    action="store_true",
+    default=False,
+    help="Record videos during training.",
 )
 parser.add_argument(
     "--video_length",
@@ -30,7 +33,10 @@ parser.add_argument(
     help="Interval between video recordings (in steps).",
 )
 parser.add_argument(
-    "--num_envs", type=int, default=None, help="Number of environments to simulate."
+    "--num_envs",
+    type=int,
+    default=None,
+    help="Number of environments to simulate.",
 )
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument(
@@ -49,7 +55,10 @@ parser.add_argument(
     help="Path to model checkpoint to resume training.",
 )
 parser.add_argument(
-    "--max_iterations", type=int, default=None, help="RL Policy training iterations."
+    "--max_iterations",
+    type=int,
+    default=None,
+    help="RL Policy training iterations.",
 )
 parser.add_argument(
     "--ml_framework",
@@ -104,6 +113,8 @@ if args_cli.ml_framework.startswith("torch"):
     from skrl.utils.runner.torch import Runner
 elif args_cli.ml_framework.startswith("jax"):
     from skrl.utils.runner.jax import Runner
+else:
+    raise ValueError(f"Unsupported ML framework: {args_cli.ml_framework}")
 
 from isaaclab.envs import (
     DirectMARLEnv,
@@ -134,12 +145,15 @@ agent_cfg_entry_point = (
 
 @hydra_task_config(args_cli.task, agent_cfg_entry_point)
 def main(
-    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict
+    env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
+    agent_cfg: dict,
 ):
     """Train with skrl agent."""
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = (
-        args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
+        args_cli.num_envs
+        if args_cli.num_envs is not None
+        else env_cfg.scene.num_envs
     )
     env_cfg.sim.device = (
         args_cli.device if args_cli.device is not None else env_cfg.sim.device
@@ -156,7 +170,9 @@ def main(
     agent_cfg["trainer"]["close_environment_at_exit"] = False
     # configure the ML framework into the global skrl variable
     if args_cli.ml_framework.startswith("jax"):
-        skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
+        skrl.config.jax.backend = (
+            "jax" if args_cli.ml_framework == "jax" else "numpy"
+        )
 
     # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
@@ -203,12 +219,14 @@ def main(
 
     # create isaac environment
     env = gym.make(
-        args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None
+        args_cli.task,
+        cfg=env_cfg,
+        render_mode="rgb_array" if args_cli.video else None,
     )
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
-        env = multi_agent_to_single_agent(env)
+        env = multi_agent_to_single_agent(env)  # type: ignore
 
     # wrap for video recording
     if args_cli.video:
@@ -224,12 +242,12 @@ def main(
 
     # wrap around environment for skrl
     env = SkrlVecEnvWrapper(
-        env, ml_framework=args_cli.ml_framework
+        env, ml_framework=args_cli.ml_framework  # type: ignore
     )  # same as: `wrap_env(env, wrapper="auto")`
 
     # configure and instantiate the skrl runner
     # https://skrl.readthedocs.io/en/latest/api/utils/runner.html
-    runner = Runner(env, agent_cfg)
+    runner = Runner(env, agent_cfg)  # type: ignore
 
     # load checkpoint (if specified)
     if resume_path:
@@ -245,6 +263,6 @@ def main(
 
 if __name__ == "__main__":
     # run the main function
-    main()
+    main()  # type: ignore
     # close sim app
     simulation_app.close()

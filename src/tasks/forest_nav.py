@@ -30,6 +30,7 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.spot.flat_env_cfg i
     SpotActionsCfg,
 )
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
+import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 
 from forest_gen import ForestGenSpec
 
@@ -63,7 +64,9 @@ class EventCfg:
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
 
 
-def distance_to_target(cfg: ManagerBasedRLEnv, target: torch.Tensor) -> torch.Tensor:
+def distance_to_target(
+    cfg: ManagerBasedRLEnv, target: torch.Tensor | None = None
+) -> torch.Tensor:
     asset: RigidObject = cfg.scene["robot"]
     device = asset.data.root_pos_w.device
     if target is None:
@@ -73,15 +76,28 @@ def distance_to_target(cfg: ManagerBasedRLEnv, target: torch.Tensor) -> torch.Te
     return torch.linalg.norm(asset.data.root_pos_w - target, dim=-1)
 
 
+def distance_from_start(cfg: "ForestNavEnv") -> torch.Tensor:
+    asset: RigidObject = cfg.scene["robot"]
+    start_point = cfg.cfg.spec.start_point  # type: ignore
+    pos_xy = asset.data.root_pos_w[:, :2]
+    start_xy = torch.tensor(
+        start_point[:2], device=asset.data.root_pos_w.device
+    )
+    return torch.linalg.norm(pos_xy - start_xy, dim=-1)
+
+
 # configclass to setup the reward terms, this is used directly in the RL learning process
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg
 @configclass
 class RewardsCfg:
+
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
     distance = RewTerm(
         func=distance_to_target, params={"target": [0.0, 0.0, 0.0]}, weight=1.0
     )
+    move = RewTerm(func=distance_from_start, weight=-0.1)
+    # TODO reward for keeping joints in "normal" ranges
 
 
 def terrain_out_of_bounds(
@@ -97,8 +113,12 @@ def terrain_out_of_bounds(
         torch.Tensor: _description_
     """
     asset: RigidObject = cfg.scene["robot"]
-    x_out_of_bounds = torch.abs(asset.data.root_pos_w[:, 0]) > SIZE - distance_buffer
-    y_out_of_bounds = torch.abs(asset.data.root_pos_w[:, 1]) > SIZE - distance_buffer
+    x_out_of_bounds = (
+        torch.abs(asset.data.root_pos_w[:, 0]) > SIZE - distance_buffer
+    )
+    y_out_of_bounds = (
+        torch.abs(asset.data.root_pos_w[:, 1]) > SIZE - distance_buffer
+    )
     return torch.logical_or(x_out_of_bounds, y_out_of_bounds)
 
 
@@ -112,6 +132,7 @@ class TerminationsCfg:
         params={"distance_buffer": 3.0},
         time_out=True,
     )
+    # TODO kill when joints would die
 
 
 # configclass to setup the observations, these provide arguments for the RL model
@@ -168,6 +189,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
     def __init__(self, size: int = 100):
         self.size = size
+        self.spec = ForestGenSpec(size=self.size, robot=SPOT_CFG)
         super().__init__()
 
         self.robot = SPOT_CFG
@@ -193,8 +215,6 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
     # i have no clue why this is needed, but it was in the tutorial and I am a pious man who follows the path of the righteous
     def __post_init__(self):
-        self.spec = ForestGenSpec(size=self.size, robot=SPOT_CFG)
-
         """Post initialization."""
         # viewer settings
         # self.viewer.eye = (50.0, 50.0, 200.0)
@@ -204,7 +224,11 @@ class EnvCfg(ManagerBasedRLEnvCfg):
             self.spec.start_point[1] - 10,
             10,
         )
-        self.viewer.lookat = (self.spec.start_point[0], self.spec.start_point[1], 1)
+        self.viewer.lookat = (
+            self.spec.start_point[0],
+            self.spec.start_point[1],
+            1,
+        )
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
@@ -213,11 +237,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
 class ForestNavEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: EnvCfg, **kwargs):
-        print("TRALALELO TRALALA")
-        self.cfg = cfg
         # Tutaj generujesz scenę na podstawie parametrów z cfg
-        # spec = ForestGenSpec(size=cfg.size, robot=cfg.robot)
-        scene = cfg.spec.create_instance().new_scene()
-        print("Skibidi")
-        cfg.scene = scene
+        cfg.scene = cfg.spec.create_instance().new_scene()
         super().__init__(cfg, **kwargs)
+        self.cfg = cfg
