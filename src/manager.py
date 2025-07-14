@@ -19,7 +19,6 @@ from isaaclab.managers import (
 )
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from isaaclab.assets import RigidObject
-from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
 
 # isaaclab_assets is a special module containing prebuilt assets
 from isaaclab_assets.robots.spot import SPOT_CFG
@@ -72,7 +71,9 @@ class EventCfg:
 
     def __init__(self, spec: ForestGenSpec):
         # please note this:
-        self.reset_scene = EventTerm(func=reset_robot_pos, mode="reset", params={})
+        self.reset_scene = EventTerm(
+            func=reset_robot_pos, mode="reset", params={}
+        )
 
 
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
@@ -105,7 +106,8 @@ class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
     distance = RewTerm(
-        func=DistanceToTargetCfg(target=torch.tensor([0.0, 0.0, 0.0])), weight=1.0
+        func=DistanceToTargetCfg(target=torch.tensor([0.0, 0.0, 0.0])),
+        weight=1.0,
     )
 
 
@@ -122,8 +124,12 @@ def terrain_out_of_bounds(
         torch.Tensor: _description_
     """
     asset: RigidObject = cfg.scene["robot"]
-    x_out_of_bounds = torch.abs(asset.data.root_pos_w[:, 0]) > SIZE - distance_buffer
-    y_out_of_bounds = torch.abs(asset.data.root_pos_w[:, 1]) > SIZE - distance_buffer
+    x_out_of_bounds = (
+        torch.abs(asset.data.root_pos_w[:, 0]) > SIZE - distance_buffer
+    )
+    y_out_of_bounds = (
+        torch.abs(asset.data.root_pos_w[:, 1]) > SIZE - distance_buffer
+    )
     return torch.logical_or(x_out_of_bounds, y_out_of_bounds)
 
 
@@ -194,10 +200,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
     def __init__(self, size: int = 256):
         super().__init__()
 
-        spec = ForestGenSpec(
-            size=size,
-            robot=SPOT_CFG,
-        )
+        spec = ForestGenSpec(size=size, robot=SPOT_CFG)
 
         # please note: we initialize the manager with a prebuilt COMPLETE scene
         self.scene = spec.create_instance().new_scene()

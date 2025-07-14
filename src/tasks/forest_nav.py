@@ -1,7 +1,6 @@
-from dataclasses import dataclass
 import torch
 
-from bridge_config import setup_logging, setup
+from bridge_config import setup_logging
 
 logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
 
@@ -19,8 +18,8 @@ from isaaclab.managers import (
     EventTermCfg as EventTerm,
 )
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
-from isaaclab.assets import RigidObject
-from isaaclab.sensors import ContactSensorCfg, RayCasterCfg, patterns
+from isaaclab.assets import RigidObject, Articulation
+from isaaclab.sensors import ContactSensorCfg
 
 # isaaclab_assets is a special module containing prebuilt assets
 from isaaclab_assets.robots.spot import SPOT_CFG
@@ -39,26 +38,41 @@ SIZE = 256
 """The size of the scene. The generated scene will be a square of size SIZE x SIZE."""
 
 
-def reset_robot_pos(cfg: ManagerBasedRLEnv, env_ids: torch.Tensor) -> None:
-    """Reset the robot position to the center of the scene.
-
-    Args:
-        cfg (ManagerBasedRLEnv): The configuration of the scene.
-    """
-    print("test", env_ids)
-    asset: RigidObject = cfg.scene["robot"]
-    asset.data.root_pos_w[:, 0] = SIZE / 2.0
-    asset.data.root_pos_w[:, 1] = SIZE / 2.0
-    asset.data.root_pos_w[:, 2] = 0.0
-
-
 # configclass to setup events that the manager will invoke at certain times
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg
 @configclass
 class EventCfg:
 
-    def __init__(self):
-        self.reset_scene = EventTerm(reset_robot_pos, mode="reset", params={})
+    reset_base = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "pose_range": {
+                "x": (0, 0),
+                "y": (0, 0),
+                "yaw": (0, 0),
+            },
+            "velocity_range": {
+                "x": (-1.5, 1.5),
+                "y": (-1.0, 1.0),
+                "z": (-0.5, 0.5),
+                "roll": (-0.7, 0.7),
+                "pitch": (-0.7, 0.7),
+                "yaw": (-1.0, 1.0),
+            },
+        },
+    )
+
+    reset_robot_joints = EventTerm(
+        func=spot_mdp.reset_joints_around_default,
+        mode="reset",
+        params={
+            "position_range": (-0.2, 0.2),
+            "velocity_range": (-2.5, 2.5),
+            "asset_cfg": SceneEntityCfg("robot"),
+        },
+    )
 
 
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
@@ -86,18 +100,103 @@ def distance_from_start(cfg: "ForestNavEnv") -> torch.Tensor:
     return torch.linalg.norm(pos_xy - start_xy, dim=-1)
 
 
+def joint_position_penalty(
+    env: ManagerBasedRLEnv,
+    asset_cfg: SceneEntityCfg,
+    stand_still_scale: float,
+    velocity_threshold: float,
+) -> torch.Tensor:
+    """Penalize joint position error from default on the articulation."""
+    # extract the used quantities (to enable type-hinting)
+    asset: Articulation = env.scene[asset_cfg.name]
+    body_vel = torch.linalg.norm(asset.data.root_lin_vel_b[:, :2], dim=1)
+    reward = torch.linalg.norm(
+        (asset.data.joint_pos - asset.data.default_joint_pos), dim=1
+    )
+    return torch.where(
+        body_vel > velocity_threshold,
+        reward,
+        stand_still_scale * reward,
+    )
+
+
 # configclass to setup the reward terms, this is used directly in the RL learning process
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg
 @configclass
 class RewardsCfg:
-
-    alive = RewTerm(func=mdp.is_alive, weight=1.0)
+    # sanity
+    alive = RewTerm(func=mdp.is_alive, weight=100.0)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
+
+    # task
     distance = RewTerm(
-        func=distance_to_target, params={"target": [0.0, 0.0, 0.0]}, weight=1.0
+        func=distance_to_target,
+        params={"target": [0.0, 0.0, 0.0]},
+        weight=-10.0,
     )
-    move = RewTerm(func=distance_from_start, weight=-0.1)
-    # TODO reward for keeping joints in "normal" ranges
+    move = RewTerm(func=distance_from_start, weight=3.0)
+
+    # rewards
+    foot_clearance = RewTerm(
+        func=spot_mdp.foot_clearance_reward,
+        weight=0.5,
+        params={
+            "std": 0.05,
+            "tanh_mult": 2.0,
+            "target_height": 0.1,
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
+        },
+    )
+
+    # penalties
+    action_smoothness = RewTerm(
+        func=spot_mdp.action_smoothness_penalty, weight=-1.0
+    )
+    base_motion = RewTerm(
+        func=spot_mdp.base_motion_penalty,
+        weight=-2.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+    base_orientation = RewTerm(
+        func=spot_mdp.base_orientation_penalty,
+        weight=-3.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+    foot_slip = RewTerm(
+        func=spot_mdp.foot_slip_penalty,
+        weight=-0.5,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces", body_names=".*_foot"
+            ),
+            "threshold": 1.0,
+        },
+    )
+    joint_acc = RewTerm(
+        func=spot_mdp.joint_acceleration_penalty,
+        weight=-1.0e-4,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_h[xy]")},
+    )
+    joint_vel = RewTerm(
+        func=spot_mdp.joint_velocity_penalty,
+        weight=-1.0e-2,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*_h[xy]")},
+    )
+    joint_pos = RewTerm(
+        func=joint_position_penalty,
+        weight=-0.7,
+        params={
+            "asset_cfg": SceneEntityCfg("robot", joint_names=".*"),
+            "stand_still_scale": 5.0,
+            "velocity_threshold": 0.5,
+        },
+    )
+    joint_torques = RewTerm(
+        func=spot_mdp.joint_torques_penalty,
+        weight=-5.0e-4,
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=".*")},
+    )
 
 
 def terrain_out_of_bounds(
@@ -132,7 +231,15 @@ class TerminationsCfg:
         params={"distance_buffer": 3.0},
         time_out=True,
     )
-    # TODO kill when joints would die
+    body_contact = DoneTerm(
+        func=mdp.illegal_contact,
+        params={
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces", body_names=["body", ".*leg"]
+            ),
+            "threshold": 1.0,
+        },
+    )
 
 
 # configclass to setup the observations, these provide arguments for the RL model
@@ -189,11 +296,21 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
     def __init__(self, size: int = 100):
         self.size = size
-        self.spec = ForestGenSpec(size=self.size, robot=SPOT_CFG)
+        self.spec = ForestGenSpec(
+            size=self.size,
+            robot=SPOT_CFG,
+            sensors={
+                "contact_forces": ContactSensorCfg(
+                    prim_path="{ENV_REGEX_NS}/robot/.*",
+                    history_length=3,
+                    track_air_time=True,
+                )
+            },
+        )
         super().__init__()
 
         self.robot = SPOT_CFG
-        self.robot.prim_path = "/World/terrain/robot"
+        self.robot.prim_path = "{ENV_REGEX_NS}/robot"
 
         self.scene = InteractiveSceneCfg()
         setattr(self.scene, "robot", SPOT_CFG)
@@ -220,8 +337,8 @@ class EnvCfg(ManagerBasedRLEnvCfg):
         # self.viewer.eye = (50.0, 50.0, 200.0)
         # self.viewer.lookat = (50.0, 50.0, 0.0)
         self.viewer.eye = (
-            self.spec.start_point[0] - 10,
-            self.spec.start_point[1] - 10,
+            self.spec.start_point[0] - 5,
+            self.spec.start_point[1] - 5,
             10,
         )
         self.viewer.lookat = (
