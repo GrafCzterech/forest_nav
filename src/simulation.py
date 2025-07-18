@@ -42,10 +42,11 @@ if __name__ == "__main__":
     sim.set_camera_view((0.0, 0.0, 5.0), (1.0, 1.0, 4.0))
 
     # Scene generation
-    generator = ForestGenSpec(size=100, robot=SPOT_CFG)
+    generator = ForestGenSpec(size=100)
     logger.debug("Scene generator initialized")
     scene_factory = generator.create_instance()
-    my_scene_cfg = scene_factory.new_scene()
+    my_scene_cfg = scene_factory.new_scene(SPOT_CFG)
+
     logger.debug("Scene generated")
     my_scene = InteractiveScene(my_scene_cfg)
 
