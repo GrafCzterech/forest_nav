@@ -7,7 +7,7 @@ logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
 # simulation_app, _ = setup()
 
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg
+from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg, ViewerCfg
 from isaaclab.utils import configclass
 from isaaclab.managers import (
     ObservationTermCfg as ObsTerm,
@@ -297,67 +297,54 @@ class ObservationsCfg:
 @configclass
 class EnvCfg(ManagerBasedRLEnvCfg):
 
-    def __init__(self, size: int = 100):
-        self.size = size
-        self.spec = ForestGenSpec(
-            size=self.size,
-        )
-        super().__init__()
+    spec = ForestGenSpec(size=SIZE)
 
-        self.robot = SPOT_CFG
-        self.robot.prim_path = "{ENV_REGEX_NS}/robot"
-        self.sensors = {
-            "contact_forces": ContactSensorCfg(
-                prim_path="{ENV_REGEX_NS}/robot/.*",
-                history_length=3,
-                track_air_time=True,
-            )
-        }
+    scene = InteractiveSceneCfg(1, 0.0)
+    setattr(scene, "robot", SPOT_CFG)
 
-        self.scene = InteractiveSceneCfg()
-        setattr(self.scene, "robot", SPOT_CFG)
+    # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
 
-        self.scene.env_spacing = 1.0
-        self.scene.num_envs = 1
+    episode_length_s = 100.0
 
-        # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
+    actions = SpotActionsCfg()  # spot effectors
+    observations = ObservationsCfg()  # spot observations
+    events = EventCfg()  # events that happen in the scene
 
-        self.episode_length_s = 100.0
+    # RL config
+    rewards = RewardsCfg()
+    terminations = TerminationsCfg()
+    commands = SpotCommandsCfg()
 
-        self.actions = SpotActionsCfg()  # spot effectors
-        self.observations = ObservationsCfg()  # spot observations
-        self.events = EventCfg()  # events that happen in the scene
-
-        # RL config
-        self.rewards = RewardsCfg()
-        self.terminations = TerminationsCfg()
-        self.commands = SpotCommandsCfg()
+    viewer = ViewerCfg(
+        eye=(spec.origin[0] - 5, spec.origin[1] - 5, 10),
+        lookat=(spec.origin[0], spec.origin[1], 1),
+        asset_name="robot",
+    )
 
     # i have no clue why this is needed, but it was in the tutorial and I am a pious man who follows the path of the righteous
     def __post_init__(self):
         """Post initialization."""
-        # viewer settings
-        # self.viewer.eye = (50.0, 50.0, 200.0)
-        # self.viewer.lookat = (50.0, 50.0, 0.0)
-        self.viewer.eye = (
-            self.robot.init_state.pos[0] - 5,
-            self.robot.init_state.pos[1] - 5,
-            10,
-        )
-        self.viewer.lookat = (
-            self.robot.init_state.pos[0],
-            self.robot.init_state.pos[1],
-            1,
-        )
         # step settings
         self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
         # simulation settings
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
 
+SIZE = 100
+
+
 class ForestNavEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: EnvCfg, **kwargs):
         # Tutaj generujesz scenę na podstawie parametrów z cfg
-        cfg.scene = cfg.spec.create_instance().new_scene()
+        cfg.scene = cfg.spec.create_instance().new_scene(
+            SPOT_CFG,
+            {
+                "contact_forces": ContactSensorCfg(
+                    prim_path="{ENV_REGEX_NS}/robot/.*",
+                    history_length=3,
+                    track_air_time=True,
+                )
+            },
+        )
         super().__init__(cfg, **kwargs)
         self.cfg = cfg
