@@ -345,6 +345,8 @@ class ForestNavEnv(ManagerBasedRLEnv):
                     track_air_time=True,
                 )
             },
+            num_envs=cfg.scene.num_envs,
+            env_spacing=cfg.scene.env_spacing,
         )
         super().__init__(cfg, **kwargs)
         self.cfg = cfg
