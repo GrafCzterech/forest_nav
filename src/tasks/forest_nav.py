@@ -198,38 +198,11 @@ class RewardsCfg:
     )
 
 
-def terrain_out_of_bounds(
-    cfg: ManagerBasedRLEnv, distance_buffer: float = 3.0
-) -> torch.Tensor:
-    """Check if the robot is out of bounds of the terrain.
-
-    Args:
-        cfg (ManagerBasedRLEnv): The configuration of the scene.
-        distance_buffer (float, optional): The distance the agent should keep from the edge. Defaults to 3.0.
-
-    Returns:
-        torch.Tensor: _description_
-    """
-    asset: RigidObject = cfg.scene["robot"]
-    x_out_of_bounds = (
-        torch.abs(asset.data.root_pos_w[:, 0]) > SIZE - distance_buffer
-    )
-    y_out_of_bounds = (
-        torch.abs(asset.data.root_pos_w[:, 1]) > SIZE - distance_buffer
-    )
-    return torch.logical_or(x_out_of_bounds, y_out_of_bounds)
-
-
 # configclass to setup the termination terms, if any of these return true, the episode is terminated
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.TerminationTermCfg
 @configclass
 class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    terrain_out_of_bounds = DoneTerm(
-        func=terrain_out_of_bounds,
-        params={"distance_buffer": 3.0},
-        time_out=True,
-    )
     body_contact = DoneTerm(
         func=mdp.illegal_contact,
         params={
@@ -299,7 +272,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
     spec = ForestGenSpec(size=SIZE)
 
-    scene = InteractiveSceneCfg(1, 0.0)
+    scene = InteractiveSceneCfg(1, 0.5)
     setattr(scene, "robot", SPOT_CFG)
 
     # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html

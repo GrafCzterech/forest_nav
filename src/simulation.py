@@ -46,7 +46,7 @@ if __name__ == "__main__":
     logger.debug("Scene generator initialized")
     scene_factory = generator.create_instance()
     my_scene_cfg = scene_factory.new_scene(
-        SPOT_CFG, num_envs=2, env_spacing=2.0
+        SPOT_CFG, num_envs=2, env_spacing=1.0
     )
 
     logger.debug("Scene generated")
