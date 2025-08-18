@@ -18,7 +18,6 @@ from isaaclab.managers import (
     EventTermCfg as EventTerm,
 )
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
-from isaaclab.assets import RigidObject
 from isaaclab.sensors import ContactSensorCfg
 
 # isaaclab_assets is a special module containing prebuilt assets
@@ -44,16 +43,33 @@ SIZE = 256
 @configclass
 class EventCfg:
 
+    add_base_mass = EventTerm(
+        func=mdp.randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="body"),
+            "mass_distribution_params": (-2.5, 2.5),
+            "operation": "add",
+        },
+    )
+
+    # reset
+    base_external_force_torque = EventTerm(
+        func=mdp.apply_external_force_torque,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot", body_names="body"),
+            "force_range": (0.0, 0.0),
+            "torque_range": (-0.0, 0.0),
+        },
+    )
+
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "pose_range": {
-                "x": (-0.5, 0.5),
-                "y": (-0.5, 0.5),
-                "yaw": (-3.14, 3.14),
-            },
+            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
             "velocity_range": {
                 "x": (-1.5, 1.5),
                 "y": (-1.0, 1.0),
@@ -75,20 +91,21 @@ class EventCfg:
         },
     )
 
+    # interval
+    push_robot = EventTerm(
+        func=mdp.push_by_setting_velocity,
+        mode="interval",
+        interval_range_s=(10.0, 15.0),
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)},
+        },
+    )
+
 
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
 
 
-def distance_to_target(
-    cfg: ManagerBasedRLEnv, target: torch.Tensor | None = None
-) -> torch.Tensor:
-    asset: RigidObject = cfg.scene["robot"]
-    device = asset.data.root_pos_w.device
-    if target is None:
-        target = torch.tensor([0.0, 0.0, 0.0], device=device)
-    elif not isinstance(target, torch.Tensor):
-        target = torch.tensor(target, device=device)
-    return torch.linalg.norm(asset.data.root_pos_w - target, dim=-1)
 
 
 # configclass to setup the reward terms, this is used directly in the RL learning process
@@ -99,14 +116,6 @@ class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=3)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
 
-    # task
-    """
-    distance = RewTerm(
-        func=distance_to_target,
-        params={"target": [0.0, 0.0, 0.0]},
-        weight=-10.0,
-    )
-    """
 
     # rewards
     air_time = RewTerm(
