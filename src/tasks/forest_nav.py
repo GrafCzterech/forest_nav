@@ -91,16 +91,6 @@ class EventCfg:
         },
     )
 
-    # interval
-    push_robot = EventTerm(
-        func=mdp.push_by_setting_velocity,
-        mode="interval",
-        interval_range_s=(10.0, 15.0),
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)},
-        },
-    )
 
 
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
@@ -132,12 +122,12 @@ class RewardsCfg:
     )
     base_angular_velocity = RewTerm(
         func=spot_mdp.base_angular_velocity_reward,
-        weight=5.0,
+        weight=2.5,
         params={"std": 2.0, "asset_cfg": SceneEntityCfg("robot")},
     )
     base_linear_velocity = RewTerm(
         func=spot_mdp.base_linear_velocity_reward,
-        weight=5.0,
+        weight=10.0,
         params={
             "std": 1.0,
             "ramp_rate": 0.5,
@@ -281,7 +271,7 @@ class EnvCfg(ManagerBasedRLEnvCfg):
 
     spec = ForestGenSpec(size=SIZE)
 
-    scene = InteractiveSceneCfg(1, 0.5)
+    scene = InteractiveSceneCfg(1, 1.0)
     setattr(scene, "robot", SPOT_CFG)
 
     # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
