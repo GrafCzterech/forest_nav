@@ -326,17 +326,13 @@ SIZE = 100
 class ForestNavEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: EnvCfg, **kwargs):
         # Tutaj generujesz scenę na podstawie parametrów z cfg
-        cfg.scene = cfg.spec.create_instance().new_scene(
-            SPOT_CFG,
-            {
-                "contact_forces": ContactSensorCfg(
-                    prim_path="{ENV_REGEX_NS}/robot/.*",
-                    history_length=3,
-                    track_air_time=True,
-                )
-            },
-            num_envs=cfg.scene.num_envs,
-            env_spacing=cfg.scene.env_spacing,
-        )
+        factory = cfg.spec.create_instance(cfg.scene.num_envs, cfg.scene.env_spacing)
+        factory.set_robot(SPOT_CFG)
+        factory.add_sensor("contact_forces", ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/robot/.*",
+            history_length=3,
+            track_air_time=True,
+        ))
+        cfg.scene = factory.get_scene()
         super().__init__(cfg, **kwargs)
         self.cfg = cfg
