@@ -19,6 +19,7 @@ from isaaclab.managers import (
 )
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 from isaaclab.sensors import ContactSensorCfg
+from isaaclab.assets import Articulation
 
 # isaaclab_assets is a special module containing prebuilt assets
 from isaaclab_assets.robots.spot import SPOT_CFG
@@ -96,7 +97,13 @@ class EventCfg:
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
 
 
-
+def distance_to_asset(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, target_key: str) -> torch.Tensor:
+    asset: Articulation = env.scene[asset_cfg.name]
+    targets = [a for name, a in env.scene.extras.items() if target_key in name]
+    if not targets:
+        return torch.tensor(0.0)
+    #https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
+    return torch.Tensor(tuple(min(torch.norm(pos - target.get_world_poses()[0]) for target in targets) for pos in asset.data.root_pos_w))
 
 # configclass to setup the reward terms, this is used directly in the RL learning process
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg
@@ -145,6 +152,17 @@ class RewardsCfg:
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
         },
     )
+
+    #distance to tree penalty
+    """
+    distance_to_tree = RewTerm(
+        func=distance_to_asset,
+        weight=-1.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "target_key": "Oak",
+        },
+    )"""
 
     # penalties
     action_smoothness = RewTerm(
