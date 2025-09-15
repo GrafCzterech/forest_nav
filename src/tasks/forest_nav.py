@@ -32,7 +32,7 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.spot.flat_env_cfg i
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
 import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 
-from forest_gen import ForestGenSpec
+from forest_gen import ForestGenSpec, TraversabilityMapBuilder
 
 
 SIZE = 256
@@ -105,6 +105,10 @@ def distance_to_asset(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, target_
     #https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
     return torch.Tensor(tuple(min(torch.norm(pos - target.get_world_poses()[0]) for target in targets) for pos in asset.data.root_pos_w))
 
+def traversability(env: "ForestNavEnv", asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    asset: Articulation = env.scene[asset_cfg.name]
+    return torch.Tensor(env.trav_map[asset.data.root_pos_w[0], asset.data.root_pos_w[1]])
+
 # configclass to setup the reward terms, this is used directly in the RL learning process
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg
 @configclass
@@ -153,14 +157,12 @@ class RewardsCfg:
         },
     )
 
-    #distance to tree penalty
     """
-    distance_to_tree = RewTerm(
-        func=distance_to_asset,
-        weight=-1.0,
+    traversability = RewTerm(
+        func=traversability,
+        weight=0.5,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "target_key": "Oak",
         },
     )"""
 
@@ -320,13 +322,12 @@ class EnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 0.005  # sim step every 5ms: 200Hz
 
 
-SIZE = 100
-
-
 class ForestNavEnv(ManagerBasedRLEnv):
     def __init__(self, cfg: EnvCfg, **kwargs):
         # Tutaj generujesz scenę na podstawie parametrów z cfg
         factory = cfg.spec.create_instance(cfg.scene.num_envs, cfg.scene.env_spacing)
+        builder: TraversabilityMapBuilder = factory.terrain.traversability_map # type: ignore
+        self.trav_map = builder.get_score()
         factory.set_robot(SPOT_CFG)
         factory.add_sensor("contact_forces", ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/robot/.*",
