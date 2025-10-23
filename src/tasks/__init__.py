@@ -1,12 +1,5 @@
-import gymnasium as gym
+from .forest_nav import task_spec
 
-gym.register(
-    id="forest_nav",
-    entry_point="tasks.forest_nav:ForestNavEnv",
-    # entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.forest_nav:EnvCfg",
-        "skrl_cfg_entry_point": f"{__name__}:skrl_forest_nav_cfg.yaml",
-    },
+task_spec.register(
+    "forest_nav", skrl_cfg_entry_point=f"{__name__}:skrl_forest_nav_cfg.yaml"
 )

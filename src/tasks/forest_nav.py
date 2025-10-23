@@ -33,6 +33,7 @@ import isaaclab_tasks.manager_based.navigation.mdp as mdp
 import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 
 from forest_gen import ForestGenSpec, TraversabilityMapBuilder
+from neuroforgelab import TrainingSpec
 
 
 SIZE = 256
@@ -93,21 +94,31 @@ class EventCfg:
     )
 
 
-
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
 
 
-def distance_to_asset(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, target_key: str) -> torch.Tensor:
+def distance_to_asset(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, target_key: str
+) -> torch.Tensor:
     asset: Articulation = env.scene[asset_cfg.name]
     targets = [a for name, a in env.scene.extras.items() if target_key in name]
     if not targets:
         return torch.tensor(0.0)
-    #https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
-    return torch.Tensor(tuple(min(torch.norm(pos - target.get_world_poses()[0]) for target in targets) for pos in asset.data.root_pos_w))
+    # https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
+    return torch.Tensor(
+        tuple(
+            min(torch.norm(pos - target.get_world_poses()[0]) for target in targets)
+            for pos in asset.data.root_pos_w
+        )
+    )
 
-def traversability(env: "ForestNavEnv", asset_cfg: SceneEntityCfg) -> torch.Tensor:
+
+def traversability(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.Tensor(env.trav_map[asset.data.root_pos_w[0], asset.data.root_pos_w[1]])
+    return torch.Tensor(
+        env.trav_map[asset.data.root_pos_w[0], asset.data.root_pos_w[1]]
+    )
+
 
 # configclass to setup the reward terms, this is used directly in the RL learning process
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg
@@ -117,7 +128,6 @@ class RewardsCfg:
     alive = RewTerm(func=mdp.is_alive, weight=3)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
 
-
     # rewards
     air_time = RewTerm(
         func=spot_mdp.air_time_reward,
@@ -126,9 +136,7 @@ class RewardsCfg:
             "mode_time": 0.3,
             "velocity_threshold": 0.5,
             "asset_cfg": SceneEntityCfg("robot"),
-            "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=".*_foot"
-            ),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
         },
     )
     base_angular_velocity = RewTerm(
@@ -167,9 +175,7 @@ class RewardsCfg:
     )"""
 
     # penalties
-    action_smoothness = RewTerm(
-        func=spot_mdp.action_smoothness_penalty, weight=-1.0
-    )
+    action_smoothness = RewTerm(func=spot_mdp.action_smoothness_penalty, weight=-1.0)
     base_motion = RewTerm(
         func=spot_mdp.base_motion_penalty,
         weight=-2.0,
@@ -185,9 +191,7 @@ class RewardsCfg:
         weight=-0.5,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
-            "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=".*_foot"
-            ),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
             "threshold": 1.0,
         },
     )
@@ -285,55 +289,30 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-# one configclass to rule them all and in the darkness bind them
-@configclass
-class EnvCfg(ManagerBasedRLEnvCfg):
+terrain_spec = ForestGenSpec(size=SIZE)
 
-    spec = ForestGenSpec(size=SIZE)
-
-    scene = InteractiveSceneCfg(1, 1.0)
-    setattr(scene, "robot", SPOT_CFG)
-
-    # https://isaac-sim.github.io/IsaacLab/main/source/tutorials/03_envs/create_manager_base_env.html
-
-    episode_length_s = 100.0
-
-    actions = SpotActionsCfg()  # spot effectors
-    observations = ObservationsCfg()  # spot observations
-    events = EventCfg()  # events that happen in the scene
-
-    # RL config
-    rewards = RewardsCfg()
-    terminations = TerminationsCfg()
-    commands = SpotCommandsCfg()
-
-    viewer = ViewerCfg(
-        eye=(spec.origin[0] - 5, spec.origin[1] - 5, 10),
-        lookat=(spec.origin[0], spec.origin[1], 1),
-        asset_name="robot",
-    )
-
-    # i have no clue why this is needed, but it was in the tutorial and I am a pious man who follows the path of the righteous
-    def __post_init__(self):
-        """Post initialization."""
-        # step settings
-        self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
-        # simulation settings
-        self.sim.dt = 0.005  # sim step every 5ms: 200Hz
-
-
-class ForestNavEnv(ManagerBasedRLEnv):
-    def __init__(self, cfg: EnvCfg, **kwargs):
-        # Tutaj generujesz scenę na podstawie parametrów z cfg
-        factory = cfg.spec.create_instance(cfg.scene.num_envs, cfg.scene.env_spacing)
-        builder: TraversabilityMapBuilder = factory.terrain.traversability_map # type: ignore
-        self.trav_map = builder.get_score()
-        factory.set_robot(SPOT_CFG)
-        factory.add_sensor("contact_forces", ContactSensorCfg(
+task_spec = TrainingSpec(
+    scene=terrain_spec,
+    robot=SPOT_CFG,
+    actions=SpotActionsCfg(),
+    observations=ObservationsCfg(),
+    events=EventCfg(),
+    rewards=RewardsCfg(),
+    terminations=TerminationsCfg(),
+    commands=SpotCommandsCfg(),
+    sensors={
+        "contact_forces": ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/robot/.*",
             history_length=3,
             track_air_time=True,
-        ))
-        cfg.scene = factory.get_scene()
-        super().__init__(cfg, **kwargs)
-        self.cfg = cfg
+        )
+    },
+).to_env_cfg(
+    ViewerCfg(
+        eye=(terrain_spec.origin[0] - 5, terrain_spec.origin[1] - 5, 10),
+        lookat=(terrain_spec.origin[0], terrain_spec.origin[1], 1),
+        asset_name="robot",
+    ),
+    4,
+    100,
+)
