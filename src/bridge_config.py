@@ -1,10 +1,5 @@
 import logging
-from typing import Iterable, Any
-import argparse
-
-# this script is a centralized place to set up the logging configuration
-
-from isaaclab.app import AppLauncher
+from typing import Iterable
 
 
 def setup_logging(targets: Iterable[str], level: int = logging.DEBUG) -> logging.Logger:
@@ -29,27 +24,13 @@ def setup_logging(targets: Iterable[str], level: int = logging.DEBUG) -> logging
         )
     )
 
+    logger = logging.getLogger(__name__)
+    logger.addHandler(handler)
+    logger.setLevel(level)
+
     for logger in targets:
         logger = logging.getLogger(logger)
         logger.addHandler(handler)
         logger.setLevel(level)
 
     return logger
-
-
-def setup() -> tuple[Any, Any]:
-    """Initialize Isaac Sim
-    Convenience function to reduce boilerplate code in the scripts.
-
-    Returns:
-        tuple[object, object]: simulation_app, args_cli
-    """
-    parser = argparse.ArgumentParser(
-        description="Basic scene loading from NeuroforgeLab Interface"
-    )
-
-    AppLauncher.add_app_launcher_args(parser)
-    args_cli = parser.parse_args()
-
-    simulation_app = AppLauncher(args_cli).app
-    return simulation_app, args_cli

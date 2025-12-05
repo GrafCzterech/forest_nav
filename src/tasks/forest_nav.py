@@ -1,25 +1,37 @@
 import torch
-
 from bridge_config import setup_logging
 
 logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
 
 # simulation_app, _ = setup()
 
-from isaaclab.scene import InteractiveSceneCfg
+import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
+import isaaclab_tasks.manager_based.navigation.mdp as mdp
+from forest_gen import ForestGenSpec, TraversabilityMapBuilder
+from isaaclab.assets import Articulation
 from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg, ViewerCfg
-from isaaclab.utils import configclass
 from isaaclab.managers import (
-    ObservationTermCfg as ObsTerm,
-    SceneEntityCfg,
-    ObservationGroupCfg as ObsGroup,
-    TerminationTermCfg as DoneTerm,
-    RewardTermCfg as RewTerm,
     EventTermCfg as EventTerm,
 )
-from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
+from isaaclab.managers import (
+    ObservationGroupCfg as ObsGroup,
+)
+from isaaclab.managers import (
+    ObservationTermCfg as ObsTerm,
+)
+from isaaclab.managers import (
+    RewardTermCfg as RewTerm,
+)
+from isaaclab.managers import (
+    SceneEntityCfg,
+)
+from isaaclab.managers import (
+    TerminationTermCfg as DoneTerm,
+)
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.assets import Articulation
+from isaaclab.utils import configclass
+from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
 
 # isaaclab_assets is a special module containing prebuilt assets
 from isaaclab_assets.robots.spot import SPOT_CFG
@@ -29,12 +41,8 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.spot.flat_env_cfg i
     SpotActionsCfg,
     SpotCommandsCfg,
 )
-import isaaclab_tasks.manager_based.navigation.mdp as mdp
-import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 
-from forest_gen import ForestGenSpec, TraversabilityMapBuilder
-from neuroforgelab import TrainingSpec
-
+from stripe_kit import TrainingSpec
 
 SIZE = 256
 """The size of the scene. The generated scene will be a square of size SIZE x SIZE."""

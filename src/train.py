@@ -1,16 +1,11 @@
-"""
-Script to train RL agent with skrl.
-
-Visit the skrl documentation (https://skrl.readthedocs.io) to see the examples structured in
-a more user-friendly way.
-"""
-
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
+import os
+import random
 import sys
+from datetime import datetime
+from typing import Any
 
-from isaaclab.app import AppLauncher
+from packaging import version
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with skrl.")
@@ -75,8 +70,11 @@ parser.add_argument(
     help="The RL algorithm used for training the skrl agent.",
 )
 
+from isaaclab.app import AppLauncher
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
+
 # parse the arguments
 args_cli, hydra_args = parser.parse_known_args()
 # always enable cameras to record video
@@ -90,15 +88,20 @@ sys.argv = [sys.argv[0]] + hydra_args
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-"""Rest everything follows."""
-
 import gymnasium as gym
-import os
-import random
-from datetime import datetime
-
 import skrl
-from packaging import version
+import tasks
+from isaaclab.envs import (
+    DirectMARLEnv,
+    DirectMARLEnvCfg,
+    DirectRLEnvCfg,
+    ManagerBasedRLEnvCfg,
+    multi_agent_to_single_agent,
+)
+from isaaclab.utils.assets import retrieve_file_path
+from isaaclab.utils.dict import print_dict
+from isaaclab_rl.skrl import SkrlVecEnvWrapper
+from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # check for minimum supported skrl version
 SKRL_VERSION = "1.4.2"
@@ -116,22 +119,6 @@ elif args_cli.ml_framework.startswith("jax"):
 else:
     raise ValueError(f"Unsupported ML framework: {args_cli.ml_framework}")
 
-from isaaclab.envs import (
-    DirectMARLEnv,
-    DirectMARLEnvCfg,
-    DirectRLEnvCfg,
-    ManagerBasedRLEnvCfg,
-    multi_agent_to_single_agent,
-)
-from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.dict import print_dict
-from isaaclab.utils.io import dump_pickle, dump_yaml
-
-from isaaclab_rl.skrl import SkrlVecEnvWrapper
-
-import tasks  # noqa: F401
-from isaaclab_tasks.utils.hydra import hydra_task_config
-
 # PLACEHOLDER: Extension template (do not remove this comment)
 
 # config shortcuts
@@ -146,14 +133,12 @@ agent_cfg_entry_point = (
 @hydra_task_config(args_cli.task, agent_cfg_entry_point)
 def main(
     env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg,
-    agent_cfg: dict,
+    agent_cfg: dict[str, Any],
 ):
     """Train with skrl agent."""
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = (
-        args_cli.num_envs
-        if args_cli.num_envs is not None
-        else env_cfg.scene.num_envs
+        args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     )
     env_cfg.sim.device = (
         args_cli.device if args_cli.device is not None else env_cfg.sim.device
@@ -170,9 +155,7 @@ def main(
     agent_cfg["trainer"]["close_environment_at_exit"] = False
     # configure the ML framework into the global skrl variable
     if args_cli.ml_framework.startswith("jax"):
-        skrl.config.jax.backend = (
-            "jax" if args_cli.ml_framework == "jax" else "numpy"
-        )
+        skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
     # randomly sample a seed if seed = -1
     if args_cli.seed == -1:

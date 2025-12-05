@@ -1,12 +1,24 @@
-from bridge_config import setup_logging, setup
+import argparse
+
+from bridge_config import setup_logging
+from isaaclab.app import AppLauncher
 
 logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
 
-simulation_app, args_cli = setup()
+parser = argparse.ArgumentParser(
+    description="Basic scene loading from NeuroforgeLab Interface"
+)
+parser.add_argument("--debug_models", action="store_true", help="Enable debug mode")
+parser.add_argument("--size", type=int, default=100, help="Size of the scene")
 
-from isaaclab.scene import InteractiveScene
-from isaaclab.sim import SimulationContext, SimulationCfg
+AppLauncher.add_app_launcher_args(parser)
+args_cli = parser.parse_args()
 
+simulation_app = AppLauncher(args_cli).app
+
+
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab_assets.robots.spot import SPOT_CFG
 
 from forest_gen import ForestGenSpec
@@ -42,13 +54,14 @@ if __name__ == "__main__":
     sim.set_camera_view((0.0, 0.0, 5.0), (1.0, 1.0, 4.0))
 
     # Scene generation
-    generator = ForestGenSpec(size=100)
+    generator = ForestGenSpec(size=args_cli.size)
     logger.debug("Scene generator initialized")
-    scene_factory = generator.create_instance(num_envs=2, env_spacing=1.0)
+    scene_factory = generator.create_instance(num_envs=2, env_spacing=1.0, debug_models=args_cli.debug_models)
     scene_factory.set_robot(SPOT_CFG)
     my_scene_cfg = scene_factory.get_scene()
 
     logger.debug("Scene generated")
+    #my_scene_cfg = InteractiveSceneCfg(1, 1)
     my_scene = InteractiveScene(my_scene_cfg)
 
     # Reset simulation context - required by Isaac Lab
