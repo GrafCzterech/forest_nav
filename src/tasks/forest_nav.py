@@ -1,15 +1,9 @@
-import torch
-from bridge_config import setup_logging
-
-logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
-
-# simulation_app, _ = setup()
-
 import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
-from forest_gen import ForestGenSpec, TraversabilityMapBuilder
-from isaaclab.assets import Articulation
-from isaaclab.envs import ManagerBasedRLEnv, ManagerBasedRLEnvCfg, ViewerCfg
+import torch
+from bridge_config import setup_logging
+from isaaclab.assets import Articulation, RigidObject
+from isaaclab.envs import ViewerCfg
 from isaaclab.managers import (
     EventTermCfg as EventTerm,
 )
@@ -28,7 +22,6 @@ from isaaclab.managers import (
 from isaaclab.managers import (
     TerminationTermCfg as DoneTerm,
 )
-from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -42,17 +35,41 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.spot.flat_env_cfg i
     SpotCommandsCfg,
 )
 
-from stripe_kit import TrainingSpec
+# our code
+from stripe_kit import TaskEnvCfg, TrainingSpec
 
-SIZE = 256
+from forest_gen import ForestGenSpec, TraversabilityMapBuilder
+
+logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
+
+SIZE = 50
 """The size of the scene. The generated scene will be a square of size SIZE x SIZE."""
+
+
+def ensure_above_ground(
+    env: TaskEnvCfg, env_ids: torch.Tensor, asset_cfg: SceneEntityCfg
+) -> None:
+    asset: RigidObject | Articulation = env.scene[asset_cfg.name]
+    root_states = asset.data.root_state_w[env_ids].clone()
+    positions = root_states[:, 0:3]
+
+    for i in range(positions.shape[0]):
+        positions[i][2] = max(
+            env.terrain.raw(positions[i][0].cpu().item(), positions[i][1].cpu().item())
+            + 1.0,
+            positions[i][2].cpu().item(),
+        )
+
+    asset.write_root_pose_to_sim(
+        torch.cat([positions, root_states[:, 3:7]], dim=-1),
+        env_ids=env_ids,  # pyright: ignore[reportArgumentType]
+    )
 
 
 # configclass to setup events that the manager will invoke at certain times
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.EventTermCfg
 @configclass
 class EventCfg:
-
     add_base_mass = EventTerm(
         func=mdp.randomize_rigid_body_mass,
         mode="startup",
@@ -64,16 +81,6 @@ class EventCfg:
     )
 
     # reset
-    base_external_force_torque = EventTerm(
-        func=mdp.apply_external_force_torque,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names="body"),
-            "force_range": (0.0, 0.0),
-            "torque_range": (-0.0, 0.0),
-        },
-    )
-
     reset_base = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -101,24 +108,16 @@ class EventCfg:
         },
     )
 
+    ensure_above_ground = EventTerm(
+        func=ensure_above_ground,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+        },
+    )
+
 
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
-
-
-def distance_to_asset(
-    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, target_key: str
-) -> torch.Tensor:
-    asset: Articulation = env.scene[asset_cfg.name]
-    targets = [a for name, a in env.scene.extras.items() if target_key in name]
-    if not targets:
-        return torch.tensor(0.0)
-    # https://docs.isaacsim.omniverse.nvidia.com/5.0.0/py/source/extensions/isaacsim.core.prims/docs/index.html#isaacsim.core.prims.XFormPrim
-    return torch.Tensor(
-        tuple(
-            min(torch.norm(pos - target.get_world_poses()[0]) for target in targets)
-            for pos in asset.data.root_pos_w
-        )
-    )
 
 
 def traversability(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
@@ -238,11 +237,15 @@ class TerminationsCfg:
         func=mdp.illegal_contact,
         params={
             "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=["body", ".*leg"]
+                "contact_forces",
+                body_names=["body"],  # ".*leg"
             ),
             "threshold": 1.0,
         },
     )
+    # joints_limit = DoneTerm(
+    #     func=mdp.joint_pos_out_of_limit,
+    # )
 
 
 # configclass to setup the observations, these provide arguments for the RL model
@@ -313,12 +316,13 @@ task_spec = TrainingSpec(
             prim_path="{ENV_REGEX_NS}/robot/.*",
             history_length=3,
             track_air_time=True,
+            filter_prim_paths_expr=["/all/Grass*"],
         )
     },
 ).to_env_cfg(
     ViewerCfg(
-        eye=(terrain_spec.origin[0] - 5, terrain_spec.origin[1] - 5, 10),
-        lookat=(terrain_spec.origin[0], terrain_spec.origin[1], 1),
+        eye=(3, 3, 3),
+        origin_type="asset_root",
         asset_name="robot",
     ),
     4,

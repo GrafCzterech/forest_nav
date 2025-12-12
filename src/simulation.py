@@ -9,7 +9,7 @@ parser = argparse.ArgumentParser(
     description="Basic scene loading from NeuroforgeLab Interface"
 )
 parser.add_argument("--debug_models", action="store_true", help="Enable debug mode")
-parser.add_argument("--size", type=int, default=100, help="Size of the scene")
+parser.add_argument("--size", type=int, default=50, help="Size of the scene")
 
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
@@ -17,11 +17,10 @@ args_cli = parser.parse_args()
 simulation_app = AppLauncher(args_cli).app
 
 
+from forest_gen import ForestGenSpec
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab_assets.robots.spot import SPOT_CFG
-
-from forest_gen import ForestGenSpec
 
 
 def run_simulation(sim: SimulationContext, scene: InteractiveScene) -> None:
@@ -56,7 +55,7 @@ if __name__ == "__main__":
     # Scene generation
     generator = ForestGenSpec(size=args_cli.size)
     logger.debug("Scene generator initialized")
-    scene_factory = generator.create_instance(num_envs=2, env_spacing=1.0, debug_models=args_cli.debug_models)
+    scene_factory = generator.create_instance(num_envs=2, env_spacing=1.0) #, debug_models=args_cli.debug_models)
     scene_factory.set_robot(SPOT_CFG)
     my_scene_cfg = scene_factory.get_scene()
 
