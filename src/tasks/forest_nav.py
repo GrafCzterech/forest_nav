@@ -54,9 +54,15 @@ def ensure_above_ground(
     positions = root_states[:, 0:3]
 
     for i in range(positions.shape[0]):
+        try:
+            ground_height = env.terrain.raw(
+                positions[i][0].cpu().item(), positions[i][1].cpu().item()
+            )
+        except IndexError:
+            ground_height = 0.0
+
         positions[i][2] = max(
-            env.terrain.raw(positions[i][0].cpu().item(), positions[i][1].cpu().item())
-            + 1.0,
+            ground_height + 1.0,
             positions[i][2].cpu().item(),
         )
 
@@ -127,6 +133,23 @@ def traversability(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     )
 
 
+def distance_to_target(
+    env, asset_cfg: SceneEntityCfg, target: torch.Tensor | None = None
+) -> torch.Tensor:
+    asset: RigidObject = env.scene[asset_cfg.name]
+    device = asset.data.root_pos_w.device
+    # use only x,y coordinates for distance calculation
+    pos_xy = asset.data.root_pos_w[..., :2]
+    if target is None:
+        target_xy = torch.tensor([0.0, 0.0], device=device)
+    elif not isinstance(target, torch.Tensor):
+        target_xy = torch.tensor(target, device=device)[..., :2]
+    else:
+        target_xy = target.to(device)[..., :2]
+
+    return torch.linalg.norm(pos_xy - target_xy, dim=-1)
+
+
 # configclass to setup the reward terms, this is used directly in the RL learning process
 # https://isaac-sim.github.io/IsaacLab/main/source/api/lab/isaaclab.managers.html#isaaclab.managers.RewardTermCfg
 @configclass
@@ -136,6 +159,14 @@ class RewardsCfg:
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
 
     # rewards
+    """
+    distance = RewTerm(
+        func=distance_to_target,
+        weight=-5.0,
+        params={"asset_cfg": SceneEntityCfg("robot"), "target": [0.0, 0.0]},
+    )
+    """
+
     air_time = RewTerm(
         func=spot_mdp.air_time_reward,
         weight=5.0,
@@ -238,7 +269,7 @@ class TerminationsCfg:
         params={
             "sensor_cfg": SceneEntityCfg(
                 "contact_forces",
-                body_names=["body"],  # ".*leg"
+                body_names=["body", ".*leg"],  # ".*leg"
             ),
             "threshold": 1.0,
         },
@@ -300,7 +331,7 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-terrain_spec = ForestGenSpec(size=SIZE)
+terrain_spec = ForestGenSpec(size=SIZE, margin=20)
 
 task_spec = TrainingSpec(
     scene=terrain_spec,
@@ -316,7 +347,10 @@ task_spec = TrainingSpec(
             prim_path="{ENV_REGEX_NS}/robot/.*",
             history_length=3,
             track_air_time=True,
-            filter_prim_paths_expr=["/all/Grass*"],
+            filter_prim_paths_expr=[
+                "/terrain/terrain_0/mesh",
+                "/terrain/terrain_1/mesh",
+            ],
         )
     },
 ).to_env_cfg(

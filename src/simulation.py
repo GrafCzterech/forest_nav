@@ -17,10 +17,11 @@ args_cli = parser.parse_args()
 simulation_app = AppLauncher(args_cli).app
 
 
-from forest_gen import ForestGenSpec
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab_assets.robots.spot import SPOT_CFG
+
+from forest_gen import ForestGenSpec
 
 
 def run_simulation(sim: SimulationContext, scene: InteractiveScene) -> None:
@@ -55,12 +56,14 @@ if __name__ == "__main__":
     # Scene generation
     generator = ForestGenSpec(size=args_cli.size)
     logger.debug("Scene generator initialized")
-    scene_factory = generator.create_instance(num_envs=2, env_spacing=1.0) #, debug_models=args_cli.debug_models)
-    scene_factory.set_robot(SPOT_CFG)
-    my_scene_cfg = scene_factory.get_scene()
+    scene_factory = generator.create_instance(
+        num_envs=2, env_spacing=1.0
+    )  # , debug_models=args_cli.debug_models)
+    my_scene_cfg = scene_factory.get_scene(SPOT_CFG)
 
     logger.debug("Scene generated")
-    #my_scene_cfg = InteractiveSceneCfg(1, 1)
+    # my_scene_cfg = InteractiveSceneCfg(1, 1)
+    # my_scene_cfg = InteractiveSceneCfg(1, 1)
     my_scene = InteractiveScene(my_scene_cfg)
 
     # Reset simulation context - required by Isaac Lab
