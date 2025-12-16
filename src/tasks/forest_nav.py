@@ -114,6 +114,18 @@ class EventCfg:
         },
     )
 
+    """
+    push_by_setting_velocity = EventTerm(
+        func=mdp.push_by_setting_velocity,
+        mode="interval",
+        interval_range_s=(10.0, 15.0),
+        params={
+            "velocity_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5)},
+            "asset_cfg": SceneEntityCfg("robot"),
+        }
+    )
+    """
+
     ensure_above_ground = EventTerm(
         func=ensure_above_ground,
         mode="reset",
@@ -200,6 +212,19 @@ class RewardsCfg:
             "tanh_mult": 2.0,
             "target_height": 0.1,
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
+        },
+    )
+
+    gait = RewTerm(
+        func=spot_mdp.GaitReward,
+        weight=10.0,
+        params={
+            "std": 0.1,
+            "max_err": 0.2,
+            "velocity_threshold": 0.5,
+            "synced_feet_pair_names": (("fl_foot", "hr_foot"), ("fr_foot", "hl_foot")),
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sensor_cfg": SceneEntityCfg("contact_forces"),
         },
     )
 
@@ -335,7 +360,7 @@ terrain_spec = ForestGenSpec(size=SIZE, margin=20)
 
 task_spec = TrainingSpec(
     scene=terrain_spec,
-    robot=SPOT_CFG,
+    robot=SPOT_CFG.copy(),
     actions=SpotActionsCfg(),
     observations=ObservationsCfg(),
     events=EventCfg(),
