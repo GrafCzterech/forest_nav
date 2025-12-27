@@ -127,3 +127,115 @@ The robots should gradually learn to first stand, then walk.
 ### Possible errors
 
 If the robots reset too frequently, then possibly something is ill configured.
+
+## Test dependency configuration and version compatibility
+
+The goal of this test is to verify that changes in dependency versions (Python, 
+Isaac Lab, stripe_kit, forest_gen) do not introduce silent configuration or 
+compatibility issues.
+
+### Setup prerequisites
+
+- stripe_kit and forest_gen are installed
+- Access to configuration files (YAML / Python)
+- Active conda environment
+
+### Test steps
+
+1. Check the versions of key dependencies
+
+    ```bash
+    python --version
+    pip show stripe_kit forest_gen isaaclab
+    ```
+    
+2. Temporarily change one dependency version
+
+    ```bash
+    pip install stripe_kit==<previous_version>
+    ```
+
+3. Launch the simulation
+4. Restore the current dependency version
+5. Launch the simulation again
+
+### Expected result
+
+- The simulation starts correctly with supported versions
+- In case of incompatibility, a clear and explicit error is raised
+- No silent failures (e.g. missing sensors, empty scenes)
+
+### Possible errors
+
+- Import errors
+- API changes in stripe_kit not reflected in forest_nav
+- Outdated version documentation
+
+## Test performance and stability with different scene parameters
+
+This test verifies that the simulation remains stable and performs acceptably
+when increasing size of the scene or amount of assets in the scene.
+
+### Setup prerequisites
+
+- Working simulation
+- Ability to modify scene configuration
+- Resource monitoring (CPU / GPU / RAM)
+
+### Test steps
+
+1. Increase the size of the scene or change asset distribution parameters
+2. Launch the simulation
+3. Observe:
+   - simulation startup time
+   - FPS stability
+   - memory usage
+4. Keep the simulation running for an extended period (e.g. 10–15 minutes)
+
+### Expected result
+
+- The simulation starts successfully
+- No crashes or memory leaks
+- Performance degradation is predictable and roughly linear
+
+### Possible errors
+
+- GPU memory exhaustion
+- Physics instability
+- Long environment reset times during training
+
+## Test training resume from checkpoint
+
+The goal of this test is to ensure that the training pipeline correctly supports
+saving and resuming training from checkpoints.
+
+### Setup prerequisites
+
+- Training runs successfully
+- Checkpoints are being generated
+- Sufficient disk space for logs and checkpoints
+
+### Test steps
+
+1. Start the training
+2. Wait until at least one checkpoint is created
+3. Interrupt the training
+4. Resume training from a checkpoint
+
+    ```bash
+    ./train.sh --checkpoint <path/to/checkpoint/file>
+    ```
+    
+5. Inspect training logs and metrics
+
+### Expected result
+
+- Training resumes from the given checkpoint
+- Policy and optimizer states are preserved
+- Learning curves remain continuous
+
+### Possible errors
+
+- Checkpoint incompatibility after code changes
+- Environment state loading issues
+  
