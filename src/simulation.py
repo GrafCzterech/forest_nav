@@ -54,7 +54,7 @@ if __name__ == "__main__":
     sim.set_camera_view((0.0, 0.0, 5.0), (1.0, 1.0, 4.0))
 
     # Scene generation
-    generator = ForestGenSpec(size=args_cli.size)
+    generator = ForestGenSpec(size=args_cli.size, asset_path="../forest-gen/models")
     logger.debug("Scene generator initialized")
     scene_factory = generator.create_instance(
         num_envs=2, env_spacing=1.0

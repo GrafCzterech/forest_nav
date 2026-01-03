@@ -14,6 +14,10 @@ installed. For the former, best you simply install it using pip:
 ```bash
 pip install stripe-kit forest_gen
 ```
+Unfortunatelly assets required for forest_gen need to be downloaded directly
+from GitHub. After downloading them inside catalogue of your choosing you wil
+need to specify that catalogue as "asset path" string argument of ForestGenSpec
+inside forest_nav/src/simulation.py file.
 
 Installing Isaac Lab is a bit more involved, you best follow instructions
 in the [`stripe_kit` documentation](https://grafczterech.github.io/STRIPE-kit/installation.html).
