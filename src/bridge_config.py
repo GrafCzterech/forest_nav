@@ -1,8 +1,12 @@
+import argparse
 import logging
+import os
 from typing import Iterable
 
 
-def setup_logging(targets: Iterable[str], level: int = logging.DEBUG) -> logging.Logger:
+def setup_logging(
+    targets: Iterable[str], level: int = logging.DEBUG
+) -> logging.Logger:
     """Set up logging for the given targets.
     This function creates a stream handler with a specific format and adds it to
     the specified loggers. The loggers are set to the specified logging level.
@@ -34,3 +38,10 @@ def setup_logging(targets: Iterable[str], level: int = logging.DEBUG) -> logging
         logger.setLevel(level)
 
     return logger
+
+
+def get_asset_path(args: argparse.Namespace | None = None) -> str:
+    if args and args.asset_path:
+        return args.asset_path
+    else:
+        return os.environ.get("ASSET_PATH", "../forest-gen/models")
