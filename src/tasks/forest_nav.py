@@ -1,7 +1,8 @@
 import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
 import torch
-from bridge_config import setup_logging
+from bridge_config import get_asset_path, setup_logging
+from forest_gen import ForestGenSpec
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import ViewerCfg
 from isaaclab.managers import (
@@ -38,8 +39,6 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.spot.flat_env_cfg i
 # our code
 from stripe_kit import TaskEnvCfg, TrainingSpec
 
-from forest_gen import ForestGenSpec, TraversabilityMapBuilder
-
 logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
 
 SIZE = 50
@@ -62,7 +61,7 @@ def ensure_above_ground(
             ground_height = 0.0
 
         positions[i][2] = max(
-            ground_height + 1.0,
+            ground_height + 0.5,
             positions[i][2].cpu().item(),
         )
 
@@ -92,7 +91,11 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "pose_range": {"x": (-0.5, 0.5), "y": (-0.5, 0.5), "yaw": (-3.14, 3.14)},
+            "pose_range": {
+                "x": (-0.5, 0.5),
+                "y": (-0.5, 0.5),
+                "yaw": (-3.14, 3.14),
+            },
             "velocity_range": {
                 "x": (-1.5, 1.5),
                 "y": (-1.0, 1.0),
@@ -139,10 +142,30 @@ class EventCfg:
 
 
 def traversability(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    asset: Articulation = env.scene[asset_cfg.name]
-    return torch.Tensor(
-        env.trav_map[asset.data.root_pos_w[0], asset.data.root_pos_w[1]]
+    asset: RigidObject = env.scene[asset_cfg.name]
+    device = asset.data.root_pos_w.device
+
+    positions = asset.data.root_pos_w  # [num_envs, 3]
+    x_indices = torch.clamp(
+        positions[:, 0].int(),
+        min=0,
+        max=env.terrain.traversability_score.shape[0] - 1,
     )
+    y_indices = torch.clamp(
+        positions[:, 1].int(),
+        min=0,
+        max=env.terrain.traversability_score.shape[1] - 1,
+    )
+
+    score_tensor = torch.tensor(env.terrain.traversability_score, device=device)
+    traversability_scores = score_tensor[x_indices, y_indices]  # [num_envs]
+    travers = torch.where(
+        traversability_scores < 0.3,
+        -torch.ones_like(traversability_scores),
+        torch.ones_like(traversability_scores),
+    )
+
+    return travers
 
 
 def distance_to_target(
@@ -171,6 +194,12 @@ class RewardsCfg:
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
 
     # rewards
+    traversability = RewTerm(
+        func=traversability,
+        weight=5.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
+    )
+
     """
     distance = RewTerm(
         func=distance_to_target,
@@ -186,7 +215,9 @@ class RewardsCfg:
             "mode_time": 0.3,
             "velocity_threshold": 0.5,
             "asset_cfg": SceneEntityCfg("robot"),
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces", body_names=".*_foot"
+            ),
         },
     )
     base_angular_velocity = RewTerm(
@@ -222,23 +253,19 @@ class RewardsCfg:
             "std": 0.1,
             "max_err": 0.2,
             "velocity_threshold": 0.5,
-            "synced_feet_pair_names": (("fl_foot", "hr_foot"), ("fr_foot", "hl_foot")),
+            "synced_feet_pair_names": (
+                ("fl_foot", "hr_foot"),
+                ("fr_foot", "hl_foot"),
+            ),
             "asset_cfg": SceneEntityCfg("robot"),
             "sensor_cfg": SceneEntityCfg("contact_forces"),
         },
     )
 
-    """
-    traversability = RewTerm(
-        func=traversability,
-        weight=0.5,
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-        },
-    )"""
-
     # penalties
-    action_smoothness = RewTerm(func=spot_mdp.action_smoothness_penalty, weight=-1.0)
+    action_smoothness = RewTerm(
+        func=spot_mdp.action_smoothness_penalty, weight=-1.0
+    )
     base_motion = RewTerm(
         func=spot_mdp.base_motion_penalty,
         weight=-2.0,
@@ -254,7 +281,9 @@ class RewardsCfg:
         weight=-0.5,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
-            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
+            "sensor_cfg": SceneEntityCfg(
+                "contact_forces", body_names=".*_foot"
+            ),
             "threshold": 1.0,
         },
     )
@@ -356,7 +385,7 @@ class ObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-terrain_spec = ForestGenSpec(size=SIZE, margin=20)
+terrain_spec = ForestGenSpec(asset_path=get_asset_path(), size=SIZE, margin=20)
 
 task_spec = TrainingSpec(
     scene=terrain_spec,
@@ -385,5 +414,5 @@ task_spec = TrainingSpec(
         asset_name="robot",
     ),
     4,
-    100,
+    10,
 )
