@@ -17,27 +17,27 @@ times, so now we test for that regularly.
 ### Setup Steps
 
 0. Ensure that the conda env is setup and active
-    ```bash
-    conda activate ./env_isaaclab10
-    ```
+   ```bash
+   conda activate ./env_isaaclab10
+   ```
 1. Go to [`stripe_kit` install documentation](https://grafczterech.github.io/STRIPE-kit/installation.html)
 2. Follow the steps to install `stripe_kit`
 3. Install `forest_gen`
    Here for development purposes, ideally you will copy the repository and install it locally as editable
-    ```bash
-    git clone git@github.com:GrafCzterech/forest_gen.git
-    cd forest_gen
-    pip install -e .
-    ```
+   ```bash
+   git clone git@github.com:GrafCzterech/forest_gen.git
+   cd forest_gen
+   pip install -e .
+   ```
 4. Setup `forest_nav`
-    ```bash
-    git clone git@github.com:GrafCzterech/forest_nav.git
-    cd forest_nav
-    ```
+   ```bash
+   git clone git@github.com:GrafCzterech/forest_nav.git
+   cd forest_nav
+   ```
 5. Test if the simulation works
-    ```bash
-    ./sim.sh
-    ```
+   ```bash
+   ./sim.sh
+   ```
 
 ### Expected result
 
@@ -75,22 +75,22 @@ correctly.
 
 1. Get the ip address of the machine running the simulation
 
-    ```bash
-    nslookup $(hostname)
-    ```
+   ```bash
+   nslookup $(hostname)
+   ```
 
 2. Open the Isaac Lab streaming app
 
-    ```bash
-    ./isaacsim-webrtc.AppImage
-    ```
+   ```bash
+   ./isaacsim-webrtc.AppImage
+   ```
 
 3. Launch the simulation
 
-    ```bash
-    cd forest_nav
-    ./sim.sh
-    ```
+   ```bash
+   cd forest_nav
+   ./sim.sh
+   ```
 
 4. Wait for the simulation to start
 5. Connect via the streaming app to the simulation
@@ -111,10 +111,10 @@ working correctly.
 
 1. Launch the training
 
-    ```bash
-    cd forest_nav
-    ./train.sh
-    ```
+   ```bash
+   cd forest_nav
+   ./train.sh
+   ```
 
 2. Wait for the training to start
 3. Check if the training logs are generated
@@ -130,8 +130,8 @@ If the robots reset too frequently, then possibly something is ill configured.
 
 ## Test dependency configuration and version compatibility
 
-The goal of this test is to verify that changes in dependency versions (Python, 
-Isaac Lab, stripe_kit, forest_gen) do not introduce silent configuration or 
+The goal of this test is to verify that changes in dependency versions (Python,
+Isaac Lab, stripe_kit, forest_gen) do not introduce silent configuration or
 compatibility issues.
 
 ### Setup prerequisites
@@ -144,16 +144,16 @@ compatibility issues.
 
 1. Check the versions of key dependencies
 
-    ```bash
-    python --version
-    pip show stripe_kit forest_gen isaaclab
-    ```
-    
+   ```bash
+   python --version
+   pip show stripe_kit forest_gen isaaclab
+   ```
+
 2. Temporarily change one dependency version
 
-    ```bash
-    pip install stripe_kit==<previous_version>
-    ```
+   ```bash
+   pip install stripe_kit==<previous_version>
+   ```
 
 3. Launch the simulation
 4. Restore the current dependency version
@@ -222,10 +222,10 @@ saving and resuming training from checkpoints.
 3. Interrupt the training
 4. Resume training from a checkpoint
 
-    ```bash
-    ./train.sh --checkpoint <path/to/checkpoint/file>
-    ```
-    
+   ```bash
+   ./train.sh --checkpoint <path/to/checkpoint/file>
+   ```
+
 5. Inspect training logs and metrics
 
 ### Expected result
@@ -238,4 +238,3 @@ saving and resuming training from checkpoints.
 
 - Checkpoint incompatibility after code changes
 - Environment state loading issues
-  
