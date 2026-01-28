@@ -5,6 +5,7 @@ from bridge_config import get_asset_path, setup_logging
 from forest_gen import ForestGenSpec
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import ViewerCfg
+from isaaclab.envs.mdp.recorders import RecorderTerm, RecorderTermCfg
 from isaaclab.managers import (
     EventTermCfg as EventTerm,
 )
@@ -15,14 +16,13 @@ from isaaclab.managers import (
     ObservationTermCfg as ObsTerm,
 )
 from isaaclab.managers import (
-    RewardTermCfg as RewTerm,
-)
-from isaaclab.managers import (
+    RecorderManagerBaseCfg,
     SceneEntityCfg,
 )
 from isaaclab.managers import (
-    TerminationTermCfg as DoneTerm,
+    RewardTermCfg as RewTerm,
 )
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.noise import AdditiveUniformNoiseCfg as Unoise
@@ -69,6 +69,36 @@ def ensure_above_ground(
         torch.cat([positions, root_states[:, 3:7]], dim=-1),
         env_ids=env_ids,  # pyright: ignore[reportArgumentType]
     )
+
+
+class PostStepPositionsRecorder(RecorderTerm):
+    """Recorder term for recording positions after each step."""
+
+    def record_post_step(
+        self, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    ):
+        states = self._env.scene.get_state(is_relative=True)
+        asset: Articulation = self._env.scene[asset_cfg.name]
+        states["articulation"]["robot"].clear()
+        states["articulation"]["robot"]["positions"] = asset.data.root_state_w[
+            :, 0:3
+        ]
+        return "positions", states
+
+
+@configclass
+class PostStepPositionRecorderCfg(RecorderTermCfg):
+    """Configuration for the position recorder term."""
+
+    class_type: type[RecorderTerm] = PostStepPositionsRecorder
+
+
+@configclass
+class RecordersCfg(RecorderManagerBaseCfg):
+    """Recorders terms for the MDP."""
+
+    dataset_export_dir_path = "logs/dataset"
+    post_step_states = PostStepPositionRecorderCfg()
 
 
 # configclass to setup events that the manager will invoke at certain times
@@ -196,7 +226,7 @@ class RewardsCfg:
     # rewards
     traversability = RewTerm(
         func=traversability,
-        weight=5.0,
+        weight=7.5,
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
 
@@ -396,6 +426,7 @@ task_spec = TrainingSpec(
     rewards=RewardsCfg(),
     terminations=TerminationsCfg(),
     commands=SpotCommandsCfg(),
+    recorders=RecordersCfg(),
     sensors={
         "contact_forces": ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/robot/.*",
