@@ -1,11 +1,14 @@
+import torch
+from collections.abc import Sequence
+
 import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
-import torch
-from bridge_config import get_asset_path, setup_logging
-from forest_gen import ForestGenSpec
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import ViewerCfg
-from isaaclab.envs.mdp.recorders import RecorderTerm, RecorderTermCfg
+from isaaclab.envs.mdp.recorders import (
+    RecorderTerm,
+    RecorderTermCfg,
+)
 from isaaclab.managers import (
     EventTermCfg as EventTerm,
 )
@@ -17,6 +20,7 @@ from isaaclab.managers import (
 )
 from isaaclab.managers import (
     RecorderManagerBaseCfg,
+    DatasetExportMode,
     SceneEntityCfg,
 )
 from isaaclab.managers import (
@@ -38,6 +42,8 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.spot.flat_env_cfg i
 
 # our code
 from stripe_kit import TaskEnvCfg, TrainingSpec
+from bridge_config import get_asset_path, setup_logging
+from forest_gen import ForestGenSpec
 
 logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
 
@@ -71,26 +77,32 @@ def ensure_above_ground(
     )
 
 
-class PostStepPositionsRecorder(RecorderTerm):
-    """Recorder term for recording positions after each step."""
+# No, you cannot have both event recorder handler things in the same class,
+# because that would make too much sense
+
+
+class StepPositionsRecorder(RecorderTerm):
+    def record_pre_step(
+        self, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+    ):
+        asset: Articulation = self._env.scene[asset_cfg.name]
+        positions = asset.data.root_state_w[:, 0:3]
+        assert asset.num_instances == len(positions)
+        return "root_state_pre", {
+            "positions": positions,
+            "headings": asset.data.heading_w,
+        }
 
     def record_post_step(
         self, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
     ):
-        states = self._env.scene.get_state(is_relative=True)
         asset: Articulation = self._env.scene[asset_cfg.name]
-        states["articulation"]["robot"].clear()
-        states["articulation"]["robot"]["positions"] = asset.data.root_state_w[
-            :, 0:3
-        ]
-        return "positions", states
-
-
-@configclass
-class PostStepPositionRecorderCfg(RecorderTermCfg):
-    """Configuration for the position recorder term."""
-
-    class_type: type[RecorderTerm] = PostStepPositionsRecorder
+        positions = asset.data.root_state_w[:, 0:3]
+        assert asset.num_instances == len(positions)
+        return "root_state_post", {
+            "positions": positions,
+            "headings": asset.data.heading_w,
+        }
 
 
 @configclass
@@ -98,7 +110,8 @@ class RecordersCfg(RecorderManagerBaseCfg):
     """Recorders terms for the MDP."""
 
     dataset_export_dir_path = "logs/dataset"
-    post_step_states = PostStepPositionRecorderCfg()
+    dataset_export_mode = DatasetExportMode.EXPORT_ALL
+    step_states = RecorderTermCfg(StepPositionsRecorder)
 
 
 # configclass to setup events that the manager will invoke at certain times
