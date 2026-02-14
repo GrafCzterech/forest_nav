@@ -12,9 +12,13 @@ if __name__ == "__main__":
         data = f["data"]
 
         for id, demo in sorted(
-            data.items(), key=lambda x: int(x[0].split("_", 1)[1])
-        )[-2:]:
+            data.items(),
+            key=lambda x: (
+                x[1]["root_state_pre"]["sim_time"][0],
+                int(x[0].split("_", 1)[1]),
+            ),
+        )[:20]:
             pre = demo["root_state_pre"]
-            post = demo["root_state_post"]
-            print(pre["positions"], pre["headings"])
-            print(post["positions"])
+            print(pre["positions"], pre["trav"], pre["sim_time"][0])
+            reset = demo["reset_event"]
+            print(reset["ids"][:])

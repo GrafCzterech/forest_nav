@@ -1,13 +1,20 @@
-import torch
 from collections.abc import Sequence
 
 import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
+import torch
+from bridge_config import get_asset_path, setup_logging
+from forest_gen import ForestGenSpec
 from isaaclab.assets import Articulation, RigidObject
 from isaaclab.envs import ViewerCfg
 from isaaclab.envs.mdp.recorders import (
     RecorderTerm,
     RecorderTermCfg,
+)
+from isaaclab.managers import (
+    DatasetExportMode,
+    RecorderManagerBaseCfg,
+    SceneEntityCfg,
 )
 from isaaclab.managers import (
     EventTermCfg as EventTerm,
@@ -17,11 +24,6 @@ from isaaclab.managers import (
 )
 from isaaclab.managers import (
     ObservationTermCfg as ObsTerm,
-)
-from isaaclab.managers import (
-    RecorderManagerBaseCfg,
-    DatasetExportMode,
-    SceneEntityCfg,
 )
 from isaaclab.managers import (
     RewardTermCfg as RewTerm,
@@ -42,8 +44,6 @@ from isaaclab_tasks.manager_based.locomotion.velocity.config.spot.flat_env_cfg i
 
 # our code
 from stripe_kit import TaskEnvCfg, TrainingSpec
-from bridge_config import get_asset_path, setup_logging
-from forest_gen import ForestGenSpec
 
 logger = setup_logging(("forest_gen", "neuroforgelab", "main"))
 
@@ -82,26 +82,31 @@ def ensure_above_ground(
 
 
 class StepPositionsRecorder(RecorderTerm):
+    def record_post_reset(self, env_ids: Sequence[int] | None):
+        return "reset_event", {
+            "ids": env_ids,
+        }
+
     def record_pre_step(
         self, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
     ):
         asset: Articulation = self._env.scene[asset_cfg.name]
         positions = asset.data.root_state_w[:, 0:3]
-        assert asset.num_instances == len(positions)
+        assert self._env.num_envs == len(positions)
+
+        score_tensor = torch.tensor(
+            self._env.terrain.traversability_score, device=positions.device
+        )
+        traversability_scores = score_tensor[
+            positions[:, 0].int(), positions[:, 1].int()
+        ]
+
         return "root_state_pre", {
             "positions": positions,
-            "headings": asset.data.heading_w,
-        }
-
-    def record_post_step(
-        self, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
-    ):
-        asset: Articulation = self._env.scene[asset_cfg.name]
-        positions = asset.data.root_state_w[:, 0:3]
-        assert asset.num_instances == len(positions)
-        return "root_state_post", {
-            "positions": positions,
-            "headings": asset.data.heading_w,
+            "trav": traversability_scores,
+            "sim_time": torch.tensor(
+                [asset.data._sim_timestamp for _ in range(asset.num_instances)]
+            ),
         }
 
 
@@ -202,11 +207,10 @@ def traversability(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
 
     score_tensor = torch.tensor(env.terrain.traversability_score, device=device)
     traversability_scores = score_tensor[x_indices, y_indices]  # [num_envs]
-    travers = torch.where(
-        traversability_scores < 0.3,
-        -torch.ones_like(traversability_scores),
-        torch.ones_like(traversability_scores),
-    )
+
+    # Smooth interpolation using tanh instead of step function
+    # Centers around 0.3 threshold with scaling factor for transition steepness
+    travers = torch.tanh(10.0 * (traversability_scores - 0.3))
 
     return travers
 
