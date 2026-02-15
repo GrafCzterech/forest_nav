@@ -13,21 +13,14 @@ from isaaclab.envs.mdp.recorders import (
 )
 from isaaclab.managers import (
     DatasetExportMode,
+    RecorderManager,
     RecorderManagerBaseCfg,
     SceneEntityCfg,
 )
-from isaaclab.managers import (
-    EventTermCfg as EventTerm,
-)
-from isaaclab.managers import (
-    ObservationGroupCfg as ObsGroup,
-)
-from isaaclab.managers import (
-    ObservationTermCfg as ObsTerm,
-)
-from isaaclab.managers import (
-    RewardTermCfg as RewTerm,
-)
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.utils import configclass
@@ -82,12 +75,14 @@ def ensure_above_ground(
 
 
 class StepPositionsRecorder(RecorderTerm):
+    """
     def record_post_reset(self, env_ids: Sequence[int] | None):
         return "reset_event", {
             "ids": env_ids,
         }
+    """
 
-    def record_pre_step(
+    def record_post_physics_decimation_step(
         self, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
     ):
         asset: Articulation = self._env.scene[asset_cfg.name]
@@ -101,7 +96,7 @@ class StepPositionsRecorder(RecorderTerm):
             positions[:, 0].int(), positions[:, 1].int()
         ]
 
-        return "root_state_pre", {
+        return "root_state", {
             "positions": positions,
             "trav": traversability_scores,
             "sim_time": torch.tensor(
@@ -117,6 +112,12 @@ class RecordersCfg(RecorderManagerBaseCfg):
     dataset_export_dir_path = "logs/dataset"
     dataset_export_mode = DatasetExportMode.EXPORT_ALL
     step_states = RecorderTermCfg(StepPositionsRecorder)
+
+
+def reset_recording(env: TaskEnvCfg, env_ids: torch.Tensor):
+    recorder: RecorderManager = env.recorder_manager
+    recorder
+    recorder.reset(env_ids)
 
 
 # configclass to setup events that the manager will invoke at certain times
@@ -183,6 +184,12 @@ class EventCfg:
         params={
             "asset_cfg": SceneEntityCfg("robot"),
         },
+    )
+
+    reset_recording = EventTerm(
+        func=reset_recording,
+        mode="reset",
+        params={},
     )
 
 
