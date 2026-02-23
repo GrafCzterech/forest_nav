@@ -26,7 +26,7 @@ if __name__ == "__main__":
         print(len(data))
 
         path = np.zeros((len(data), 5))
-        avg_trav = np.zeros(len(data))
+        avg_trav: dict[float, list[float]] = {}
 
         for id, (_, demo) in enumerate(
             sorted(
@@ -41,14 +41,16 @@ if __name__ == "__main__":
             path[id, 0:3] = pre["positions"][args.env_id]
             path[id, 3] = pre["trav"][args.env_id]
             path[id, 4] = pre["sim_time"][0]
-            avg_trav[id] = np.mean(pre["trav"])
+            if pre["sim_time"][0] not in avg_trav:
+                avg_trav[pre["sim_time"][0]] = []
+            avg_trav[pre["sim_time"][0]].append(np.mean(pre["trav"]))
 
     fig, ax = plt.subplots()
-    ax.bar(path[:, 4], avg_trav)
-    ax.set_xlabel("Demonstration ID")
-    ax.set_ylabel("Average Traversal Cost")
-    ax.set_title("Average Traversal Cost per Demonstration")
-    plt.savefig("avg_traversal_cost.png")
+    ax.bar(list(avg_trav.keys()), [np.mean(v) for v in avg_trav.values()])
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Average Traversal")
+    ax.set_title("Average Traversal per Demonstration")
+    plt.savefig("avg_traversal.png")
 
     path = path[-args.num_demos :]
 
@@ -68,5 +70,5 @@ if __name__ == "__main__":
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
     ax.set_title("Path colored by traversal cost")
-    plt.colorbar(sc, label="Traversal Cost")
-    plt.savefig("path_traversal_cost.png")
+    plt.colorbar(sc, label="Traversal")
+    plt.savefig("path_traversal.png")

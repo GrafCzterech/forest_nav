@@ -1,5 +1,3 @@
-from collections.abc import Sequence
-
 import isaaclab_tasks.manager_based.locomotion.velocity.config.spot.mdp as spot_mdp
 import isaaclab_tasks.manager_based.navigation.mdp as mdp
 import torch
@@ -112,12 +110,14 @@ class RecordersCfg(RecorderManagerBaseCfg):
     dataset_export_dir_path = "logs/dataset"
     dataset_export_mode = DatasetExportMode.EXPORT_ALL
     step_states = RecorderTermCfg(StepPositionsRecorder)
+    export_in_record_pre_reset = False
+    export_in_close = False
 
 
 def reset_recording(env: TaskEnvCfg, env_ids: torch.Tensor):
     recorder: RecorderManager = env.recorder_manager
-    recorder
-    recorder.reset(env_ids)
+    recorder.export_episodes(env_ids)
+    recorder._episodes = {}
 
 
 # configclass to setup events that the manager will invoke at certain times
