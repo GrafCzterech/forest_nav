@@ -45,11 +45,21 @@ if __name__ == "__main__":
                 avg_trav[pre["sim_time"][0]] = []
             avg_trav[pre["sim_time"][0]].append(np.mean(pre["trav"]))
 
+        x = list(avg_trav.keys())
+        y = [np.mean(v) for v in avg_trav.values()]
+
+    x = list(avg_trav.keys())
+    y = [np.mean(v) for v in avg_trav.values()]
     fig, ax = plt.subplots()
-    ax.bar(list(avg_trav.keys()), [np.mean(v) for v in avg_trav.values()])
+    ax.bar(x, y)
     ax.set_xlabel("Time")
     ax.set_ylabel("Average Traversal")
     ax.set_title("Average Traversal per Demonstration")
+
+    z = np.polyfit(range(len(x)), y, 1)
+    p = np.poly1d(z)
+    ax.plot(x, p(range(len(x))), "r--", label="Trend line")
+    ax.legend()
     plt.savefig("avg_traversal.png")
 
     path = path[-args.num_demos :]
