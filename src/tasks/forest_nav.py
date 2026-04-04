@@ -196,11 +196,7 @@ class EventCfg:
 # https://github.com/isaac-sim/IsaacLab/blob/main/source/isaaclab_tasks/isaaclab_tasks/manager_based/locomotion/velocity/config/spot/flat_env_cfg.py
 
 
-def traversability(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    asset: RigidObject = env.scene[asset_cfg.name]
-    device = asset.data.root_pos_w.device
-
-    positions = asset.data.root_pos_w  # [num_envs, 3]
+def trav_at_pos(env, positions: torch.Tensor, device: torch.device) -> torch.Tensor:
     x_indices = torch.clamp(
         positions[:, 0].int(),
         min=0,
@@ -220,6 +216,13 @@ def traversability(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     travers = torch.tanh(10.0 * (traversability_scores - 0.3))
 
     return travers
+
+
+def traversability(env, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    asset: RigidObject = env.scene[asset_cfg.name]
+    device = asset.data.root_pos_w.device
+    positions = asset.data.root_pos_w  # [num_envs, 3]
+    return trav_at_pos(env, positions, device)
 
 
 def distance_to_target(
@@ -250,7 +253,7 @@ class RewardsCfg:
     # rewards
     traversability = RewTerm(
         func=traversability,
-        weight=7.5,
+        weight=50.0,
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
 
@@ -269,9 +272,7 @@ class RewardsCfg:
             "mode_time": 0.3,
             "velocity_threshold": 0.5,
             "asset_cfg": SceneEntityCfg("robot"),
-            "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=".*_foot"
-            ),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
         },
     )
     base_angular_velocity = RewTerm(
@@ -317,8 +318,11 @@ class RewardsCfg:
     )
 
     # penalties
-    action_smoothness = RewTerm(
-        func=spot_mdp.action_smoothness_penalty, weight=-1.0
+    action_smoothness = RewTerm(func=spot_mdp.action_smoothness_penalty, weight=-1.0)
+    air_time_variance = RewTerm(
+        func=spot_mdp.air_time_variance_penalty,
+        weight=-1.0,
+        params={"sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot")},
     )
     base_motion = RewTerm(
         func=spot_mdp.base_motion_penalty,
@@ -335,9 +339,7 @@ class RewardsCfg:
         weight=-0.5,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=".*_foot"),
-            "sensor_cfg": SceneEntityCfg(
-                "contact_forces", body_names=".*_foot"
-            ),
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*_foot"),
             "threshold": 1.0,
         },
     )
@@ -382,9 +384,48 @@ class TerminationsCfg:
             "threshold": 1.0,
         },
     )
-    # joints_limit = DoneTerm(
-    #     func=mdp.joint_pos_out_of_limit,
-    # )
+    joints_limit = DoneTerm(
+        func=mdp.joint_pos_out_of_limit,
+    )
+
+
+def trav_obs(env, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Root angular velocity in the asset's root frame."""
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+
+    positions = asset.data.root_pos_w
+    quat = asset.data.root_quat_w
+
+    def _quat_mul(a, b):
+        aw, ax, ay, az = a.unbind(-1)
+        bw, bx, by, bz = b.unbind(-1)
+        return torch.stack(
+            [
+                aw * bw - ax * bx - ay * by - az * bz,
+                aw * bx + ax * bw + ay * bz - az * by,
+                aw * by - ax * bz + ay * bw + az * bx,
+                aw * bz + ax * by - ay * bx + az * bw,
+            ],
+            dim=-1,
+        )
+
+    v = torch.zeros_like(quat)
+    v[..., 1] = 1.0  # (0, 1, 0, 0) is the pure-vector quaternion for +X axis
+    q_conj = quat * torch.tensor(
+        [1.0, -1.0, -1.0, -1.0], device=quat.device, dtype=quat.dtype
+    )
+    rotated = _quat_mul(_quat_mul(quat, v), q_conj)
+    forward_dir = rotated[..., 1:4]
+    forward_dir = torch.nn.functional.normalize(forward_dir, dim=-1)
+    front_pos = positions + 0.5 * forward_dir
+
+    res = trav_at_pos(env, front_pos, positions.device)
+
+    return res.unsqueeze(1).to(torch.float32)
+
+
+TRAV_NOISE = 0.1
 
 
 # configclass to setup the observations, these provide arguments for the RL model
@@ -429,6 +470,11 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot")},
             noise=Unoise(n_min=-0.5, n_max=0.5),
         )
+        trav_obs = ObsTerm(
+            func=trav_obs,
+            params={"asset_cfg": SceneEntityCfg("robot")},
+            noise=Unoise(n_min=-TRAV_NOISE, n_max=TRAV_NOISE),
+        )
         actions = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -460,7 +506,7 @@ task_spec = TrainingSpec(
                 "/terrain/terrain_0/mesh",
                 "/terrain/terrain_1/mesh",
             ],
-        )
+        ),
     },
 ).to_env_cfg(
     ViewerCfg(
